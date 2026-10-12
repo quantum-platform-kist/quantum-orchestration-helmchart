@@ -1,0 +1,88 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qc-stateful-ingress
+  namespace: {{ include "qc-stateful.namespace" . }}
+  labels:
+    {{- include "qc-stateful.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  podSelector:
+    matchExpressions:
+      - key: qc.quantum-cloud/role
+        operator: In
+        values:
+          - data
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              qc.quantum-cloud/role: app
+        - podSelector:
+            matchLabels:
+              qc.quantum-cloud/role: stateful-job
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 9000
+        - protocol: TCP
+          port: 9092
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ .Values.kafka.name }}
+              app.kubernetes.io/component: kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+        - protocol: TCP
+          port: 9093
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qc-mysql-operator-pods-ingress
+  namespace: {{ include "qc-stateful.namespace" . }}
+  labels:
+    {{- include "qc-stateful.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  podSelector:
+    matchLabels:
+      mysql.oracle.com/cluster: {{ .Values.mysql.name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              qc.quantum-cloud/role: app
+        - podSelector:
+            matchLabels:
+              qc.quantum-cloud/role: stateful-job
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 6446
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mysql-operator
+        - podSelector:
+            matchLabels:
+              mysql.oracle.com/cluster: {{ .Values.mysql.name }}
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 33060
+        - protocol: TCP
+          port: 33061

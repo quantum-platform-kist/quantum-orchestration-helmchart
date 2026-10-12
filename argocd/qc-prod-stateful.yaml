@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qc-prod-stateful
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/quantum-platform-kist/quantum-orchestration-helmchart.git
+    targetRevision: dev
+    path: charts/qc-prod-stateful
+    helm:
+      valueFiles:
+        - ../../values/prod-stateful.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: quantum-cloud-prod
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+

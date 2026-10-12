@@ -1,0 +1,180 @@
+global:
+  namespace: quantum-cloud-prod
+  storageClassName: fab-lvm-retain
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+  nodePlacement:
+    data:
+      nodeSelector:
+        kubernetes.io/hostname: prod-k8s-02
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - prod-k8s-02
+      tolerations:
+        - key: fab.kist/dedicated
+          operator: Equal
+          value: data
+          effect: NoSchedule
+    web:
+      nodeSelector:
+        kubernetes.io/hostname: prod-k8s-03
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - prod-k8s-03
+      tolerations: []
+
+mysql:
+  enabled: true
+  name: qc-mysql
+  version: "9.6.0"
+  instances: 1
+  routers: 1
+  storage: 80Gi
+  rootExistingSecret: qc-mysql-root
+  rootPasswordKey: rootPassword
+  appCredentialsSecret: qc-prod-app-secrets
+  initImage:
+    repository: container-registry.oracle.com/mysql/community-server
+    tag: "9.6.0"
+  schemas:
+    auth:
+      database: auth
+      usernameKey: AUTH_DB_USERNAME
+      passwordKey: AUTH_DB_PASSWORD
+    setupRegistry:
+      database: setup_registry
+      usernameKey: SETUP_REGISTRY_DB_USERNAME
+      passwordKey: SETUP_REGISTRY_DB_PASSWORD
+    jobOrchestrator:
+      database: job_orchestrator
+      usernameKey: JOB_ORCHESTRATOR_DB_USERNAME
+      passwordKey: JOB_ORCHESTRATOR_DB_PASSWORD
+    setupA:
+      database: setup_a
+      usernameKey: SETUP_A_DB_USERNAME
+      passwordKey: SETUP_A_DB_PASSWORD
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+
+redis:
+  enabled: true
+  name: qc-redis
+  image:
+    repository: redis
+    tag: 7-alpine
+  storage: 4Gi
+  existingSecret: ""
+  passwordKey: redis-password
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+kafka:
+  enabled: true
+  name: qc-kafka
+  image:
+    repository: apache/kafka
+    tag: "3.8.0"
+  clusterId: MkU3OEVBNTcwNTJENDM2Qk
+  storage: 40Gi
+  retentionBudgetBytes: 30064771072
+  defaultRetentionMs: 604800000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+  topics:
+    stp_nv_a1_experiment_start:
+      name: setup.stp_nv_a1.experiment.start
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 604800000
+      retentionBytes: 134217728
+    stp_nv_a1_experiment_cancel:
+      name: setup.stp_nv_a1.experiment.cancel
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 604800000
+      retentionBytes: 134217728
+    stp_nv_a1_experiment_data:
+      name: setup.stp_nv_a1.experiment.data
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 604800000
+      retentionBytes: 25769803776
+    stp_nv_a1_experiment_end:
+      name: setup.stp_nv_a1.experiment.end
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 604800000
+      retentionBytes: 134217728
+    stp_nv_a1_experiment_start_event:
+      name: setup.stp_nv_a1.experiment.start-event
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 604800000
+      retentionBytes: 134217728
+    stp_nv_a1_experiment_dlq:
+      name: setup.stp_nv_a1.experiment.dlq
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 604800000
+      retentionBytes: 1073741824
+    key_rotation_events:
+      name: key-rotation-events
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 604800000
+      retentionBytes: 134217728
+
+minio:
+  enabled: true
+  name: qc-minio
+  image:
+    repository: minio/minio
+    tag: RELEASE.2025-04-22T22-12-26Z
+  mcImage:
+    repository: minio/mc
+    tag: RELEASE.2025-04-16T18-13-26Z
+  storage: 60Gi
+  bucket: setup-modules
+  credentialsSecret: qc-prod-app-secrets
+  accessKeyKey: MODULE_STORAGE_ACCESS_KEY
+  secretKeyKey: MODULE_STORAGE_SECRET_KEY
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+backup:
+  enabled: false
+  schedule: "17 18 * * *"
+  image:
+    repository: container-registry.oracle.com/mysql/community-server
+    tag: "9.6.0"
+  pvc:
+    storage: 20Gi
+

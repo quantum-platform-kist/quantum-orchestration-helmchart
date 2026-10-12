@@ -1,0 +1,45 @@
+global:
+  namespace: quantum-cloud-dev
+  storageClassName: fab-lvm-retain
+
+mysql:
+  storage: 20Gi
+  rootExistingSecret: qc-dev-mysql-root
+  appCredentialsSecret: qc-dev-app-secrets
+
+kafka:
+  storage: 10Gi
+  retentionBudgetBytes: 4294967296
+  topics:
+    stp_nv_a1_experiment_data:
+      name: setup.stp_nv_a1.experiment.data
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 86400000
+      retentionBytes: 1073741824
+    stp_nv_a1_experiment_start:
+      name: setup.stp_nv_a1.experiment.start
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 86400000
+      retentionBytes: 134217728
+    stp_nv_a1_experiment_cancel:
+      name: setup.stp_nv_a1.experiment.cancel
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 86400000
+      retentionBytes: 134217728
+    stp_nv_a1_experiment_end:
+      name: setup.stp_nv_a1.experiment.end
+      partitions: 1
+      replicationFactor: 1
+      retentionMs: 86400000
+      retentionBytes: 134217728
+
+minio:
+  storage: 10Gi
+  credentialsSecret: qc-dev-app-secrets
+
+redis:
+  storage: 2Gi
+

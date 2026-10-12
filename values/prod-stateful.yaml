@@ -1,0 +1,60 @@
+global:
+  namespace: quantum-cloud-prod
+  storageClassName: fab-lvm-retain
+  imagePullPolicy: IfNotPresent
+  nodePlacement:
+    data:
+      nodeSelector:
+        kubernetes.io/hostname: prod-k8s-02
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: [prod-k8s-02]
+      tolerations:
+        - key: fab.kist/dedicated
+          operator: Equal
+          value: data
+          effect: NoSchedule
+    web:
+      nodeSelector:
+        kubernetes.io/hostname: prod-k8s-03
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: [prod-k8s-03]
+      tolerations: []
+
+mysql:
+  version: "9.6.0"
+  storage: 80Gi
+  rootExistingSecret: qc-mysql-root
+  appCredentialsSecret: qc-prod-app-secrets
+  initImage:
+    digest: sha256:fea21fd7bff4c1e3be9a2b4cbb62167c54528868864680450ac35bf88cd2b35c
+
+kafka:
+  storage: 40Gi
+  retentionBudgetBytes: 30064771072
+  image:
+    digest: sha256:c89f315cff967322c5d2021434b32271393cb193aa7ec1d43e97341924e57069
+
+minio:
+  storage: 60Gi
+  credentialsSecret: qc-prod-app-secrets
+  image:
+    digest: sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
+  mcImage:
+    digest: sha256:aead63c77f9db9107f1696fb08ecb0faeda23729cde94b0f663edf4fe09728e3
+
+redis:
+  storage: 4Gi
+  image:
+    digest: sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba

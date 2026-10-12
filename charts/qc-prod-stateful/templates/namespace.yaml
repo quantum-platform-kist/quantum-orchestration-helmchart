@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "qc-stateful.namespace" . }}
+  labels:
+    {{- include "qc-stateful.labels" . | nindent 4 }}
+    app.kubernetes.io/name: quantum-cloud-prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+

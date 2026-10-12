@@ -1,0 +1,13 @@
+rendered/
+.codex-runs/
+tmp/
+*.tmp
+*.log
+*.private
+*.secret
+*.secrets
+*.key
+*.pem
+.env
+.env.*
+!.env.example

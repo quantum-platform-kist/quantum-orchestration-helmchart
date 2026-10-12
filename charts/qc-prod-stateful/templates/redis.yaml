@@ -1,0 +1,115 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.redis.name }}
+  namespace: {{ include "qc-stateful.namespace" . }}
+  labels:
+    {{- include "qc-stateful.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ .Values.redis.name }}
+    app.kubernetes.io/component: redis
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+  selector:
+    app.kubernetes.io/name: {{ .Values.redis.name }}
+    app.kubernetes.io/component: redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.redis.name }}
+  namespace: {{ include "qc-stateful.namespace" . }}
+  labels:
+    {{- include "qc-stateful.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ .Values.redis.name }}
+    app.kubernetes.io/component: redis
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  serviceName: {{ .Values.redis.name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.redis.name }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.redis.name }}
+        app.kubernetes.io/component: redis
+        qc.quantum-cloud/role: data
+    spec:
+      {{- include "qc-stateful.imagePullSecrets" . | nindent 6 }}
+      {{- include "qc-stateful.dataPlacement" . | nindent 6 }}
+      containers:
+        - name: redis
+          image: {{ include "qc-stateful.fullImage" .Values.redis.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          {{- if .Values.redis.existingSecret }}
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.existingSecret }}
+                  key: {{ .Values.redis.passwordKey }}
+          command:
+            - sh
+            - -ec
+          args:
+            - exec redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"
+          {{- else }}
+          command:
+            - redis-server
+          args:
+            - --appendonly
+            - "yes"
+          {{- end }}
+          ports:
+            - name: redis
+              containerPort: 6379
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - |
+                  {{- if .Values.redis.existingSecret }}
+                  redis-cli -a "$REDIS_PASSWORD" ping | grep -q PONG
+                  {{- else }}
+                  redis-cli ping | grep -q PONG
+                  {{- end }}
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - |
+                  {{- if .Values.redis.existingSecret }}
+                  redis-cli -a "$REDIS_PASSWORD" ping | grep -q PONG
+                  {{- else }}
+                  redis-cli ping | grep -q PONG
+                  {{- end }}
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: {{ .Values.global.storageClassName }}
+        resources:
+          requests:
+            storage: {{ .Values.redis.storage }}
+{{- end }}
