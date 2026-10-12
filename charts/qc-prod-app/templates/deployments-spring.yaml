@@ -1,0 +1,348 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+  namespace: {{ include "qc-app.namespace" . }}
+  labels:
+    {{- include "qc-app.labels" . | nindent 4 }}
+    app.kubernetes.io/name: auth
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.apps.auth.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: auth
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: auth
+        app.kubernetes.io/component: api
+        qc.quantum-cloud/role: app
+    spec:
+      {{- include "qc-app.imagePullSecrets" . | nindent 6 }}
+      {{- include "qc-app.webPlacement" . | nindent 6 }}
+      containers:
+        - name: auth
+          image: {{ include "qc-app.image" .Values.images.auth }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.apps.auth.port }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: SERVER_PORT
+              value: {{ .Values.apps.auth.port | quote }}
+            - name: TRUSTED_PROXIES
+              value: {{ .Values.global.trustedProxies | quote }}
+            - name: APP_BASE_URL
+              value: {{ include "qc-app.shellOrigin" . | quote }}
+            - name: MAIL_DELIVERY_MODE
+              value: {{ .Values.apps.auth.mailDeliveryMode | quote }}
+            - name: MAIL_FROM
+              value: {{ .Values.apps.auth.mailFrom | quote }}
+            - name: AUTH_DB_URL
+              value: {{ printf "jdbc:mysql://%s:3306/auth?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul" .Values.statefulServices.mysql | quote }}
+            - name: REDIS_HOST
+              value: {{ .Values.statefulServices.redis | quote }}
+            - name: REDIS_PORT
+              value: "6379"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: {{ printf "%s:9092" .Values.statefulServices.kafka | quote }}
+            - name: JWT_ISSUER
+              value: {{ .Values.global.issuer | quote }}
+            - name: JWKS_URL
+              value: http://auth:8081/.well-known/jwks.json
+            - name: AUTH_COOKIE_DOMAIN
+              value: {{ .Values.apps.auth.cookieDomain | quote }}
+            - name: AUTH_COOKIE_SECURE
+              value: {{ .Values.apps.auth.cookieSecure | quote }}
+            - name: AUTH_COOKIE_SAME_SITE
+              value: {{ .Values.apps.auth.cookieSameSite | quote }}
+            - name: AUTH_SEED_REGISTRY_CLIENT_ID
+              value: platform:setup-registry
+            - name: SETUP_TOKEN_EXPIRATION
+              value: {{ .Values.apps.auth.setupTokenExpiration | quote }}
+            - name: LOCAL_ADMIN_ALLOW_DEFAULT
+              value: "false"
+            - name: LOCAL_ADMIN_RESET_PASSWORD_ON_START
+              value: "false"
+            {{- include "qc-app.secretEnv" (dict "name" "AUTH_DB_USERNAME" "secretName" .Values.secrets.app.name "key" "AUTH_DB_USERNAME") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "AUTH_DB_PASSWORD" "secretName" .Values.secrets.app.name "key" "AUTH_DB_PASSWORD") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "JWT_KEY_ID" "secretName" .Values.secrets.app.name "key" "JWT_KEY_ID") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "JWT_PRIVATE_KEY" "secretName" .Values.secrets.app.name "key" "JWT_PRIVATE_KEY") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "JWT_PUBLIC_KEY" "secretName" .Values.secrets.app.name "key" "JWT_PUBLIC_KEY") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "JWT_REFRESH_SECRET" "secretName" .Values.secrets.app.name "key" "JWT_REFRESH_SECRET") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "AUTH_SEED_REGISTRY_CLIENT_SECRET" "secretName" .Values.secrets.app.name "key" "AUTH_SEED_REGISTRY_CLIENT_SECRET") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "LOCAL_ADMIN_EMAIL" "secretName" .Values.secrets.app.name "key" "LOCAL_ADMIN_EMAIL") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "LOCAL_ADMIN_PASSWORD" "secretName" .Values.secrets.app.name "key" "LOCAL_ADMIN_PASSWORD") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "LOCAL_ADMIN_NICKNAME" "secretName" .Values.secrets.app.name "key" "LOCAL_ADMIN_NICKNAME") | nindent 12 }}
+          {{- include "qc-app.springProbes" . | nindent 10 }}
+          resources:
+            {{- toYaml .Values.apps.auth.resources | nindent 12 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: {{ include "qc-app.namespace" . }}
+  labels:
+    {{- include "qc-app.labels" . | nindent 4 }}
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.apps.gateway.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gateway
+        app.kubernetes.io/component: api
+        qc.quantum-cloud/role: app
+    spec:
+      {{- include "qc-app.imagePullSecrets" . | nindent 6 }}
+      {{- include "qc-app.webPlacement" . | nindent 6 }}
+      containers:
+        - name: gateway
+          image: {{ include "qc-app.image" .Values.images.gateway }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.apps.gateway.port }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: SPRING_CONFIG_IMPORT
+              value: "optional:configserver:"
+            - name: SERVER_PORT
+              value: {{ .Values.apps.gateway.port | quote }}
+            - name: AUTH_SERVICE_URI
+              value: http://auth:8081
+            - name: SETUP_REGISTRY_URI
+              value: http://setup-registry:8085
+            - name: JOB_ORCHESTRATOR_URI
+              value: http://job-orchestrator:8083
+            - name: SETUP_A_BE_URI
+              value: ws://setup-a-be:8086
+            - name: CORS_ALLOWED_ORIGIN
+              value: {{ include "qc-app.shellOrigin" . | quote }}
+            - name: CORS_ALLOWED_ORIGIN_2
+              value: {{ include "qc-app.modulesOrigin" . | quote }}
+          {{- include "qc-app.springProbes" . | nindent 10 }}
+          resources:
+            {{- toYaml .Values.apps.gateway.resources | nindent 12 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: setup-registry
+  namespace: {{ include "qc-app.namespace" . }}
+  labels:
+    {{- include "qc-app.labels" . | nindent 4 }}
+    app.kubernetes.io/name: setup-registry
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.apps.setupRegistry.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: setup-registry
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: setup-registry
+        app.kubernetes.io/component: api
+        qc.quantum-cloud/role: app
+    spec:
+      {{- include "qc-app.imagePullSecrets" . | nindent 6 }}
+      {{- include "qc-app.webPlacement" . | nindent 6 }}
+      containers:
+        - name: setup-registry
+          image: {{ include "qc-app.image" .Values.images.setupRegistry }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.apps.setupRegistry.port }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: SPRING_CONFIG_IMPORT
+              value: "optional:configserver:"
+            - name: SERVER_PORT
+              value: {{ .Values.apps.setupRegistry.port | quote }}
+            - name: SETUP_REGISTRY_DB_URL
+              value: {{ printf "jdbc:mysql://%s:3306/setup_registry?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul" .Values.statefulServices.mysql | quote }}
+            - name: AUTH_SERVICE_URL
+              value: http://auth:8081
+            - name: JWKS_URL
+              value: http://auth:8081/.well-known/jwks.json
+            - name: JWT_ISSUER
+              value: {{ .Values.global.issuer | quote }}
+            - name: MODULE_STORAGE_ENDPOINT
+              value: {{ printf "http://%s:9000" .Values.statefulServices.minio | quote }}
+            - name: MODULE_STORAGE_BUCKET
+              value: {{ .Values.apps.setupRegistry.moduleStorageBucket | quote }}
+            - name: MODULE_PUBLIC_BASE_URL
+              value: {{ printf "%s/module-assets" (include "qc-app.modulesOrigin" .) | quote }}
+            - name: MODULE_SHELL_ORIGIN
+              value: {{ include "qc-app.shellOrigin" . | quote }}
+            - name: MODULE_MAX_FILE_SIZE
+              value: {{ .Values.apps.setupRegistry.moduleMaxFileSize | quote }}
+            - name: MODULE_MAX_REQUEST_SIZE
+              value: {{ .Values.apps.setupRegistry.moduleMaxRequestSize | quote }}
+            - name: SETUP_REGISTRY_AUTH_CLIENT_ID
+              value: platform:setup-registry
+            - name: SETUP_REGISTRY_AUTH_TOKEN_URI
+              value: http://auth:8081/oauth2/token
+            {{- include "qc-app.secretEnv" (dict "name" "SETUP_REGISTRY_DB_USERNAME" "secretName" .Values.secrets.app.name "key" "SETUP_REGISTRY_DB_USERNAME") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "SETUP_REGISTRY_DB_PASSWORD" "secretName" .Values.secrets.app.name "key" "SETUP_REGISTRY_DB_PASSWORD") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "MODULE_STORAGE_ACCESS_KEY" "secretName" .Values.secrets.app.name "key" "MODULE_STORAGE_ACCESS_KEY") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "MODULE_STORAGE_SECRET_KEY" "secretName" .Values.secrets.app.name "key" "MODULE_STORAGE_SECRET_KEY") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "SETUP_REGISTRY_AUTH_CLIENT_SECRET" "secretName" .Values.secrets.app.name "key" "SETUP_REGISTRY_AUTH_CLIENT_SECRET") | nindent 12 }}
+          {{- include "qc-app.springProbes" . | nindent 10 }}
+          resources:
+            {{- toYaml .Values.apps.setupRegistry.resources | nindent 12 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: job-orchestrator
+  namespace: {{ include "qc-app.namespace" . }}
+  labels:
+    {{- include "qc-app.labels" . | nindent 4 }}
+    app.kubernetes.io/name: job-orchestrator
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.apps.jobOrchestrator.replicas }}
+  strategy:
+    type: {{ .Values.apps.jobOrchestrator.strategy }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: job-orchestrator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: job-orchestrator
+        app.kubernetes.io/component: api
+        qc.quantum-cloud/role: app
+    spec:
+      {{- include "qc-app.imagePullSecrets" . | nindent 6 }}
+      {{- include "qc-app.webPlacement" . | nindent 6 }}
+      containers:
+        - name: job-orchestrator
+          image: {{ include "qc-app.image" .Values.images.jobOrchestrator }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.apps.jobOrchestrator.port }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: SPRING_CONFIG_IMPORT
+              value: "optional:configserver:"
+            - name: SERVER_PORT
+              value: {{ .Values.apps.jobOrchestrator.port | quote }}
+            - name: JOB_ORCHESTRATOR_DATASOURCE_URL
+              value: {{ printf "jdbc:mysql://%s:3306/job_orchestrator?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" .Values.statefulServices.mysql | quote }}
+            - name: SETUP_REGISTRY_URL
+              value: http://setup-registry:8085
+            - name: AUTH_SERVICE_URL
+              value: http://auth:8081
+            - name: JWKS_URL
+              value: http://auth:8081/.well-known/jwks.json
+            - name: JWT_ISSUER
+              value: {{ .Values.global.issuer | quote }}
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: {{ printf "%s:9092" .Values.statefulServices.kafka | quote }}
+            - name: JOB_EVENT_GROUP_ID
+              value: {{ .Values.apps.jobOrchestrator.eventGroupId | quote }}
+            - name: JOB_EVENT_LISTENER_AUTO_STARTUP
+              value: {{ .Values.apps.jobOrchestrator.eventListenerAutoStartup | quote }}
+            - name: QUANTUM_SETUP_SECURITY_CLIENT_ID
+              value: platform:job-orchestrator
+            - name: QUANTUM_SETUP_SECURITY_AUTH_TOKEN_URI
+              value: http://auth:8081/oauth2/token
+            {{- include "qc-app.secretEnv" (dict "name" "JOB_ORCHESTRATOR_DB_USERNAME" "secretName" .Values.secrets.app.name "key" "JOB_ORCHESTRATOR_DB_USERNAME") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "JOB_ORCHESTRATOR_DB_PASSWORD" "secretName" .Values.secrets.app.name "key" "JOB_ORCHESTRATOR_DB_PASSWORD") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "QUANTUM_SETUP_SECURITY_CLIENT_SECRET" "secretName" .Values.secrets.app.name "key" "JOB_ORCHESTRATOR_AUTH_CLIENT_SECRET") | nindent 12 }}
+          {{- include "qc-app.springProbes" . | nindent 10 }}
+          resources:
+            {{- toYaml .Values.apps.jobOrchestrator.resources | nindent 12 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: setup-a-be
+  namespace: {{ include "qc-app.namespace" . }}
+  labels:
+    {{- include "qc-app.labels" . | nindent 4 }}
+    app.kubernetes.io/name: setup-a-be
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.apps.setupABe.replicas }}
+  strategy:
+    type: {{ .Values.apps.setupABe.strategy }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: setup-a-be
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: setup-a-be
+        app.kubernetes.io/component: api
+        qc.quantum-cloud/role: app
+    spec:
+      {{- include "qc-app.imagePullSecrets" . | nindent 6 }}
+      {{- include "qc-app.webPlacement" . | nindent 6 }}
+      containers:
+        - name: setup-a-be
+          image: {{ include "qc-app.image" .Values.images.setupABe }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.apps.setupABe.port }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: SPRING_CONFIG_IMPORT
+              value: "optional:configserver:"
+            - name: SERVER_PORT
+              value: {{ .Values.apps.setupABe.port | quote }}
+            - name: SETUP_A_DB_URL
+              value: {{ printf "jdbc:mysql://%s:3306/setup_a?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul" .Values.statefulServices.mysql | quote }}
+            - name: AUTH_SERVICE_URL
+              value: http://auth:8081
+            - name: JWKS_URL
+              value: http://auth:8081/.well-known/jwks.json
+            - name: JWT_ISSUER
+              value: {{ .Values.global.issuer | quote }}
+            - name: SETUP_A_ALLOWED_ORIGINS
+              value: {{ printf "%s,%s" (include "qc-app.shellOrigin" .) (include "qc-app.modulesOrigin" .) | quote }}
+            - name: JOB_ORCHESTRATOR_BASE_URL
+              value: http://gateway:8080/api
+            - name: SETUP_REGISTRY_BASE_URL
+              value: http://gateway:8080/api
+            - name: JOB_ORCHESTRATOR_INTERNAL_BASE_URL
+              value: http://job-orchestrator:8083
+            - name: SETUP_REGISTRY_INTERNAL_BASE_URL
+              value: http://setup-registry:8085
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: {{ printf "%s:9092" .Values.statefulServices.kafka | quote }}
+            - name: SETUP_A_MEASUREMENT_KAFKA_LISTENER_ENABLED
+              value: {{ .Values.apps.setupABe.measurementKafkaListenerEnabled | quote }}
+            - name: SETUP_A_MEASUREMENT_KAFKA_GROUP_ID
+              value: {{ .Values.apps.setupABe.measurementKafkaGroupId | quote }}
+            - name: SETUP_A_MEASUREMENT_DEMO_ENABLED
+              value: {{ .Values.apps.setupABe.measurementDemoEnabled | quote }}
+            - name: QUANTUM_SETUP_SECURITY_CLIENT_ID
+              value: platform:setup-a
+            - name: QUANTUM_SETUP_SECURITY_AUTH_TOKEN_URI
+              value: http://auth:8081/oauth2/token
+            {{- include "qc-app.secretEnv" (dict "name" "SETUP_A_DB_USERNAME" "secretName" .Values.secrets.app.name "key" "SETUP_A_DB_USERNAME") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "SETUP_A_DB_PASSWORD" "secretName" .Values.secrets.app.name "key" "SETUP_A_DB_PASSWORD") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "QUANTUM_SETUP_SECURITY_CLIENT_SECRET" "secretName" .Values.secrets.app.name "key" "SETUP_A_AUTH_CLIENT_SECRET") | nindent 12 }}
+          {{- include "qc-app.springProbes" . | nindent 10 }}
+          resources:
+            {{- toYaml .Values.apps.setupABe.resources | nindent 12 }}
+

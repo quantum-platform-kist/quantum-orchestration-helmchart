@@ -1,0 +1,53 @@
+global:
+  namespace: quantum-cloud-prod
+  imagePullPolicy: IfNotPresent
+  hosts:
+    shell: qc.quantum-instrument.com
+    modules: modules.qc.quantum-instrument.com
+  gateway:
+    name: main-gateway
+    namespace: gateway-system
+    shellSectionName: qc-shell-https
+    moduleSectionName: qc-modules-https
+  issuer: https://qc.quantum-instrument.com
+  trustedProxies: 10.244.2.0/24
+  dnsResolver: 10.96.0.10
+  nodePlacement:
+    web:
+      nodeSelector:
+        kubernetes.io/hostname: prod-k8s-03
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: [prod-k8s-03]
+      tolerations: []
+
+secrets:
+  app:
+    name: qc-prod-app-secrets
+
+apps:
+  auth:
+    replicas: 0
+  gateway:
+    replicas: 0
+  setupRegistry:
+    replicas: 0
+  jobOrchestrator:
+    replicas: 0
+    strategy: Recreate
+    hpa:
+      enabled: false
+  setupABe:
+    replicas: 0
+    strategy: Recreate
+    hpa:
+      enabled: false
+  shell:
+    replicas: 0
+  setupModules:
+    replicas: 0

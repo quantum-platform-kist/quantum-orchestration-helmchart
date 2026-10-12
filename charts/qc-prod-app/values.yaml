@@ -1,0 +1,155 @@
+global:
+  namespace: quantum-cloud-prod
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+  hosts:
+    shell: qc.quantum-instrument.com
+    modules: modules.qc.quantum-instrument.com
+  gateway:
+    name: main-gateway
+    namespace: gateway-system
+    shellSectionName: qc-shell-https
+    moduleSectionName: qc-modules-https
+  issuer: https://qc.quantum-instrument.com
+  trustedProxies: 10.244.2.0/24
+  dnsResolver: 10.96.0.10
+  moduleSetupId: stp_nv_a1
+  nodePlacement:
+    web:
+      nodeSelector:
+        kubernetes.io/hostname: prod-k8s-03
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - prod-k8s-03
+      tolerations: []
+
+secrets:
+  app:
+    name: qc-prod-app-secrets
+
+statefulServices:
+  mysql: qc-mysql
+  redis: qc-redis
+  kafka: qc-kafka
+  minio: qc-minio
+
+images:
+  auth:
+    repository: quantum-cloud-local/auth
+    tag: qc-local
+    digest: ""
+  gateway:
+    repository: quantum-cloud-local/gateway
+    tag: qc-local
+    digest: ""
+  setupRegistry:
+    repository: quantum-cloud-local/setup-registry
+    tag: qc-local
+    digest: ""
+  jobOrchestrator:
+    repository: quantum-cloud-local/job-orchestrator
+    tag: qc-local
+    digest: ""
+  setupABe:
+    repository: quantum-cloud-local/setup-a-be
+    tag: qc-local
+    digest: ""
+  shell:
+    repository: quantum-cloud-local/shell
+    tag: qc-local
+    digest: ""
+  setupModules:
+    repository: quantum-cloud-local/setup-modules
+    tag: qc-local
+    digest: ""
+
+apps:
+  auth:
+    replicas: 0
+    port: 8081
+    mailDeliveryMode: mock
+    mailFrom: no-reply@quantum-instrument.com
+    cookieDomain: ""
+    cookieSecure: "true"
+    cookieSameSite: Lax
+    setupTokenExpiration: "300"
+    resources:
+      requests:
+        cpu: 150m
+        memory: 768Mi
+      limits:
+        memory: 1536Mi
+  gateway:
+    replicas: 0
+    port: 8080
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1024Mi
+  setupRegistry:
+    replicas: 0
+    port: 8085
+    moduleStorageBucket: setup-modules
+    moduleMaxFileSize: 25MB
+    moduleMaxRequestSize: 25MB
+    resources:
+      requests:
+        cpu: 150m
+        memory: 768Mi
+      limits:
+        memory: 1536Mi
+  jobOrchestrator:
+    replicas: 0
+    port: 8083
+    strategy: Recreate
+    hpa:
+      enabled: false
+    eventGroupId: job-orchestrator
+    eventListenerAutoStartup: "true"
+    resources:
+      requests:
+        cpu: 150m
+        memory: 768Mi
+      limits:
+        memory: 1536Mi
+  setupABe:
+    replicas: 0
+    port: 8086
+    strategy: Recreate
+    hpa:
+      enabled: false
+    measurementKafkaListenerEnabled: "true"
+    measurementKafkaGroupId: setup-a-be-measurements
+    measurementDemoEnabled: "false"
+    resources:
+      requests:
+        cpu: 150m
+        memory: 768Mi
+      limits:
+        memory: 1536Mi
+  shell:
+    replicas: 0
+    port: 8080
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
+  setupModules:
+    replicas: 0
+    port: 8080
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        memory: 128Mi

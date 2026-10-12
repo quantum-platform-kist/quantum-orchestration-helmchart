@@ -1,0 +1,35 @@
+global:
+  namespace: quantum-cloud-dev
+  hosts:
+    shell: qc-dev.quantum-instrument.com
+    modules: modules.qc-dev.quantum-instrument.com
+  gateway:
+    name: main-gateway
+    namespace: gateway-system
+    shellSectionName: qc-dev-shell-https
+    moduleSectionName: qc-dev-modules-https
+  issuer: https://qc-dev.quantum-instrument.com
+  trustedProxies: 10.244.2.0/24
+  dnsResolver: 10.96.0.10
+
+secrets:
+  app:
+    name: qc-dev-app-secrets
+
+apps:
+  auth:
+    replicas: 1
+  gateway:
+    replicas: 1
+  setupRegistry:
+    replicas: 1
+  jobOrchestrator:
+    replicas: 1
+    strategy: Recreate
+  setupABe:
+    replicas: 1
+    strategy: Recreate
+  shell:
+    replicas: 1
+  setupModules:
+    replicas: 1

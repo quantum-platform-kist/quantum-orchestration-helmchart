@@ -1,0 +1,33 @@
+global:
+  imagePullSecrets:
+    - ghcr
+
+images:
+  auth:
+    repository: ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/auth
+    tag: 2026.10.12-001
+    digest: sha256:20cef6eea650a02007bca13753735cfba45054adc6ab4e0cbbb032b342b79c89
+  gateway:
+    repository: ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/gateway
+    tag: 2026.10.12-001
+    digest: sha256:ee6e5794a39b9f0f0f4f34d7c68cc14c0a3b7a2e0b0763c711bc2456caef5a05
+  setupRegistry:
+    repository: ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/setup-registry
+    tag: 2026.10.12-001
+    digest: sha256:7a98d0229eee2105b70fcea782a5000e6bfe309ffdb9d2f2186979bcab781d0a
+  jobOrchestrator:
+    repository: ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/job-orchestrator
+    tag: 2026.10.12-001
+    digest: sha256:b3dc6f870756eca5bf94ec57b189fed7e9896c2c923b9017811020873f9e94cb
+  setupABe:
+    repository: ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/setup-a-be
+    tag: 2026.10.12-001
+    digest: sha256:e788efece6c7953d0ae399efde3cd7321bcd34969cd8e192b965fb4e14180d96
+  shell:
+    repository: ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/shell
+    tag: 2026.10.12-003
+    digest: sha256:2ed31bff51e83d5ce70f7452d6fd1b62cf1422386b2835ad0029b87b8b983e54
+  setupModules:
+    repository: ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/setup-modules
+    tag: 2026.10.12-003
+    digest: sha256:23ddb974dce559d8424dfcb3d4adfbe5af50ed782ee7561158673345cd779fbe

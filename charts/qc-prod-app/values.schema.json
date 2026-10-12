@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["global", "secrets", "images", "apps", "statefulServices"],
+  "properties": {
+    "global": {
+      "type": "object",
+      "required": ["namespace", "hosts", "gateway", "issuer", "nodePlacement"],
+      "properties": {
+        "namespace": { "type": "string", "minLength": 1 },
+        "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "dnsResolver": { "type": "string", "minLength": 1 },
+        "hosts": {
+          "type": "object",
+          "required": ["shell", "modules"],
+          "properties": {
+            "shell": { "type": "string", "minLength": 1 },
+            "modules": { "type": "string", "minLength": 1 }
+          }
+        },
+        "gateway": {
+          "type": "object",
+          "required": ["name", "namespace", "shellSectionName", "moduleSectionName"]
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "required": ["app"],
+      "properties": {
+        "app": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "images": {
+      "type": "object",
+      "required": ["auth", "gateway", "setupRegistry", "jobOrchestrator", "setupABe", "shell", "setupModules"]
+    },
+    "apps": {
+      "type": "object",
+      "required": ["auth", "gateway", "setupRegistry", "jobOrchestrator", "setupABe", "shell", "setupModules"]
+    }
+  }
+}

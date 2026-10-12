@@ -1,0 +1,10 @@
+apiVersion: v2
+name: qc-prod-app
+description: Quantum Cloud production application services and HTTPRoutes
+type: application
+version: 0.1.0
+appVersion: "2026.10.12"
+kubeVersion: ">=1.30.0-0"
+annotations:
+  quantum-cloud.kist/owner-scope: namespace-app-only
+

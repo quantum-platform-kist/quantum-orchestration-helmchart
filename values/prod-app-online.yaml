@@ -1,0 +1,22 @@
+apps:
+  auth:
+    replicas: 1
+  gateway:
+    replicas: 1
+  setupRegistry:
+    replicas: 1
+  jobOrchestrator:
+    replicas: 1
+    strategy: Recreate
+    hpa:
+      enabled: false
+  setupABe:
+    replicas: 1
+    strategy: Recreate
+    hpa:
+      enabled: false
+  shell:
+    replicas: 1
+  setupModules:
+    replicas: 1
+

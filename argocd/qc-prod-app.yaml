@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qc-prod-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/quantum-platform-kist/quantum-orchestration-helmchart.git
+    targetRevision: dev
+    path: charts/qc-prod-app
+    helm:
+      valueFiles:
+        - ../../values/prod-app.yaml
+        - ../../values/prod-app-images.yaml
+        - ../../values/prod-app-online.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: quantum-cloud-prod
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false

@@ -1,0 +1,45 @@
+# This reviewed manifest is intentionally not part of either QC product chart.
+# Apply it only through the shared infra owner path that already owns
+# gateway-system/main-gateway and the cluster cert-manager resources.
+#
+# Required listener additions to the existing JSON6902 /spec/listeners replace
+# patch in quantum-cloud-helmchart:
+#
+# - name: qc-shell-https
+#   hostname: qc.quantum-instrument.com
+#   port: 443
+#   protocol: HTTPS
+#   tls:
+#     mode: Terminate
+#     certificateRefs:
+#       - name: qc-tls
+#   allowedRoutes:
+#     namespaces:
+#       from: All
+# - name: qc-modules-https
+#   hostname: modules.qc.quantum-instrument.com
+#   port: 443
+#   protocol: HTTPS
+#   tls:
+#     mode: Terminate
+#     certificateRefs:
+#       - name: qc-tls
+#   allowedRoutes:
+#     namespaces:
+#       from: All
+#
+# Example Certificate. Keep it in the shared infra repo, not in this chart.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: qc-tls
+  namespace: gateway-system
+spec:
+  secretName: qc-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  dnsNames:
+    - qc.quantum-instrument.com
+    - modules.qc.quantum-instrument.com
+

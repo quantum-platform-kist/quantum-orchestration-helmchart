@@ -1,0 +1,29 @@
+{{- $services := dict
+  "auth" (dict "port" .Values.apps.auth.port)
+  "gateway" (dict "port" .Values.apps.gateway.port)
+  "setup-registry" (dict "port" .Values.apps.setupRegistry.port)
+  "job-orchestrator" (dict "port" .Values.apps.jobOrchestrator.port)
+  "setup-a-be" (dict "port" .Values.apps.setupABe.port)
+  "shell" (dict "port" .Values.apps.shell.port)
+  "setup-modules" (dict "port" .Values.apps.setupModules.port)
+-}}
+{{- range $name, $svc := $services }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "qc-app.namespace" $ }}
+  labels:
+    {{- include "qc-app.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: {{ $name }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ $svc.port }}
+      targetPort: http
+  selector:
+    app.kubernetes.io/name: {{ $name }}
+{{- end }}
+
