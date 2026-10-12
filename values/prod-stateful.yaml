@@ -2,6 +2,8 @@ global:
   namespace: quantum-cloud-prod
   storageClassName: fab-lvm-retain
   imagePullPolicy: IfNotPresent
+  imagePullSecrets:
+    - ghcr
   nodePlacement:
     data:
       nodeSelector:
@@ -50,9 +52,13 @@ minio:
   storage: 60Gi
   credentialsSecret: qc-prod-app-secrets
   image:
-    digest: sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
+    repository: ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/minio
+    tag: RELEASE.2025-04-22T22-12-26Z-qc-001
+    digest: sha256:e4cfd69993796b860f18a72eee502c1f8a12f2e0ed00ee1b78ddc53dffa5146e
   mcImage:
-    digest: sha256:aead63c77f9db9107f1696fb08ecb0faeda23729cde94b0f663edf4fe09728e3
+    repository: ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/minio-mc
+    tag: RELEASE.2025-04-16T18-13-26Z-qc-001
+    digest: sha256:9a930d018e03003603c169527dd4b21f61b616628e8bf6dc0ac7453a68187a9c
 
 redis:
   storage: 4Gi
