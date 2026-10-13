@@ -1,4 +1,4 @@
-# Quantum Cloud 운영 Helm 배포 준비
+# Quantum Cloud 운영 Helm 배포
 
 이 저장소는 Quantum Cloud 제품 배포 전용 chart입니다. 공유 `gateway-system/main-gateway`, GatewayClass, cert-manager, MySQL operator, OpenEBS StorageClass는 여기서 만들거나 수정하지 않습니다.
 
@@ -34,6 +34,19 @@ Secret 값은 git에 두지 않습니다. 기본 chart는 기존 Secret 이름�
 - `LOCAL_ADMIN_EMAIL`, `LOCAL_ADMIN_PASSWORD`, `LOCAL_ADMIN_NICKNAME`
 
 MySQL schema/user bootstrap은 `qc-mysql-app-bootstrap` Job이 Secret을 env로 읽어 수행합니다. Script는 비밀번호를 출력하지 않고, DB 이름과 계정 이름은 allowlist 정규식으로 제한합니다.
+
+
+## 운영 인증 설정
+
+`apps.auth.allowDefaultAdmin`의 chart 기본값은 `false`이며, 현재 `values/prod-app.yaml`은 사용자가 지정한 `admin@local`을 사용하기 위해 `true`로 설정합니다. 이 값이 `LOCAL_ADMIN_ALLOW_DEFAULT`로 전달되어 Auth의 기본 관리자 식별자 사용 제한을 해제합니다. 이메일·비밀번호는 기존 Secret에서 읽으며, `LOCAL_ADMIN_RESET_PASSWORD_ON_START=false`이므로 재시작마다 기존 계정의 비밀번호를 초기화하지 않습니다.
+
+Registry의 서비스 신원은 `platform:setup-registry`입니다. `AUTH_SEED_REGISTRY_CLIENT_SECRET`과 `SETUP_REGISTRY_AUTH_CLIENT_SECRET`에는 동일한 자격증명을 넣습니다. 이 계정은 셋업 서비스 계정을 발급하는 용도입니다.
+
+현재 단일 셋업 배포에서 Job 서버와 Setup A 백엔드는 `setup-be:<global.moduleSetupId>` 신원으로 Auth에 권한 판정을 요청합니다. Auth의 내부 `/oauth2/token`에서 Registry 서비스 토큰을 발급받은 뒤 `/internal/service-accounts`에 `setupId`를 전달해 셋업 계정을 생성합니다. 반환된 `clientSecret`을 `JOB_ORCHESTRATOR_AUTH_CLIENT_SECRET`, `SETUP_A_AUTH_CLIENT_SECRET`에 저장하고 두 백엔드를 재시작합니다. 내부 API는 SSH 터널 또는 클러스터 내부에서만 호출합니다.
+
+계정 생성 API는 같은 `setupId`로 재호출하면 Secret을 회전하므로 기존 계정과 보관된 Secret을 먼저 확인해야 합니다. 현재 배포는 `stp_nv_a1` 한 개를 대상으로 하며, 여러 셋업을 중앙 Job 서버에 연결할 때는 서비스 신원 관리 설계가 추가로 필요합니다.
+
+다섯 Spring 서비스의 `SERVER_FORWARD_HEADERS_STRATEGY=framework`는 nginx가 설정한 HTTPS 전달 헤더를 반영합니다. 브라우저 로그인과 쿠키 처리에 필요한 설정입니다.
 
 ## 로컬 검증
 
