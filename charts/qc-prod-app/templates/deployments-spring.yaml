@@ -268,7 +268,7 @@ spec:
             - name: JOB_EVENT_LISTENER_AUTO_STARTUP
               value: {{ .Values.apps.jobOrchestrator.eventListenerAutoStartup | quote }}
             - name: QUANTUM_SETUP_SECURITY_CLIENT_ID
-              value: platform:job-orchestrator
+              value: {{ printf "setup-be:%s" .Values.global.moduleSetupId | quote }}
             - name: QUANTUM_SETUP_SECURITY_AUTH_TOKEN_URI
               value: http://auth:8081/oauth2/token
             {{- include "qc-app.secretEnv" (dict "name" "JOB_ORCHESTRATOR_DB_USERNAME" "secretName" .Values.secrets.app.name "key" "JOB_ORCHESTRATOR_DB_USERNAME") | nindent 12 }}
@@ -346,7 +346,7 @@ spec:
             - name: SETUP_A_MEASUREMENT_DEMO_ENABLED
               value: {{ .Values.apps.setupABe.measurementDemoEnabled | quote }}
             - name: QUANTUM_SETUP_SECURITY_CLIENT_ID
-              value: platform:setup-a
+              value: {{ printf "setup-be:%s" .Values.global.moduleSetupId | quote }}
             - name: QUANTUM_SETUP_SECURITY_AUTH_TOKEN_URI
               value: http://auth:8081/oauth2/token
             {{- include "qc-app.secretEnv" (dict "name" "SETUP_A_DB_USERNAME" "secretName" .Values.secrets.app.name "key" "SETUP_A_DB_USERNAME") | nindent 12 }}
