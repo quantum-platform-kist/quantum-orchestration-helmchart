@@ -64,7 +64,7 @@ spec:
             - name: SETUP_TOKEN_EXPIRATION
               value: {{ .Values.apps.auth.setupTokenExpiration | quote }}
             - name: LOCAL_ADMIN_ALLOW_DEFAULT
-              value: "false"
+              value: {{ .Values.apps.auth.allowDefaultAdmin | quote }}
             - name: LOCAL_ADMIN_RESET_PASSWORD_ON_START
               value: "false"
             {{- include "qc-app.secretEnv" (dict "name" "AUTH_DB_USERNAME" "secretName" .Values.secrets.app.name "key" "AUTH_DB_USERNAME") | nindent 12 }}

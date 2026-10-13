@@ -43,7 +43,15 @@
     },
     "apps": {
       "type": "object",
-      "required": ["auth", "gateway", "setupRegistry", "jobOrchestrator", "setupABe", "shell", "setupModules"]
+      "required": ["auth", "gateway", "setupRegistry", "jobOrchestrator", "setupABe", "shell", "setupModules"],
+      "properties": {
+        "auth": {
+          "type": "object",
+          "properties": {
+            "allowDefaultAdmin": { "type": "boolean" }
+          }
+        }
+      }
     }
   }
 }

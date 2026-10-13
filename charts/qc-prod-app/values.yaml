@@ -72,6 +72,7 @@ images:
 apps:
   auth:
     replicas: 0
+    allowDefaultAdmin: false
     port: 8081
     mailDeliveryMode: mock
     mailFrom: no-reply@quantum-instrument.com

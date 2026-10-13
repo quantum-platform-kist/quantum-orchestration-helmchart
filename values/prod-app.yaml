@@ -33,6 +33,7 @@ secrets:
 apps:
   auth:
     replicas: 0
+    allowDefaultAdmin: true
   gateway:
     replicas: 0
   setupRegistry:
