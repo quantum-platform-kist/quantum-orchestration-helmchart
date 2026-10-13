@@ -41,8 +41,13 @@ run_yarn_build setup-a
 run_yarn_build shell
 
 echo "packaging setup-a module artifact"
-(cd "${ROOT}/setup-a/dist" && zip -qr "${ARTIFACT_DIR}/setup-a-${TAG}.zip" .)
-sha256sum "${ARTIFACT_DIR}/setup-a-${TAG}.zip" > "${ARTIFACT_DIR}/setup-a-${TAG}.zip.sha256"
+setup_a_zip="${ARTIFACT_DIR}/setup-a-${TAG}.zip"
+setup_a_tmp_dir="$(mktemp -d "${ARTIFACT_DIR}/setup-a-zip.XXXXXX")"
+setup_a_tmp_zip="${setup_a_tmp_dir}/setup-a.zip"
+(cd "${ROOT}/setup-a/dist" && zip -qr "${setup_a_tmp_zip}" index.html assets -x '*/.*')
+mv -f "${setup_a_tmp_zip}" "${setup_a_zip}"
+rmdir "${setup_a_tmp_dir}"
+sha256sum "${setup_a_zip}" > "${setup_a_zip}.sha256"
 
 build_image() {
   local name="$1"

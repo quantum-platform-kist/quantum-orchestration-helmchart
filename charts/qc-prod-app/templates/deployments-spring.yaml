@@ -33,6 +33,8 @@ spec:
               value: docker
             - name: SERVER_PORT
               value: {{ .Values.apps.auth.port | quote }}
+            - name: SERVER_FORWARD_HEADERS_STRATEGY
+              value: framework
             - name: TRUSTED_PROXIES
               value: {{ .Values.global.trustedProxies | quote }}
             - name: APP_BASE_URL
@@ -118,6 +120,8 @@ spec:
               value: "optional:configserver:"
             - name: SERVER_PORT
               value: {{ .Values.apps.gateway.port | quote }}
+            - name: SERVER_FORWARD_HEADERS_STRATEGY
+              value: framework
             - name: AUTH_SERVICE_URI
               value: http://auth:8081
             - name: SETUP_REGISTRY_URI
@@ -171,6 +175,8 @@ spec:
               value: "optional:configserver:"
             - name: SERVER_PORT
               value: {{ .Values.apps.setupRegistry.port | quote }}
+            - name: SERVER_FORWARD_HEADERS_STRATEGY
+              value: framework
             - name: SETUP_REGISTRY_DB_URL
               value: {{ printf "jdbc:mysql://%s:3306/setup_registry?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul" .Values.statefulServices.mysql | quote }}
             - name: AUTH_SERVICE_URL
@@ -243,6 +249,8 @@ spec:
               value: "optional:configserver:"
             - name: SERVER_PORT
               value: {{ .Values.apps.jobOrchestrator.port | quote }}
+            - name: SERVER_FORWARD_HEADERS_STRATEGY
+              value: framework
             - name: JOB_ORCHESTRATOR_DATASOURCE_URL
               value: {{ printf "jdbc:mysql://%s:3306/job_orchestrator?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" .Values.statefulServices.mysql | quote }}
             - name: SETUP_REGISTRY_URL
@@ -309,6 +317,8 @@ spec:
               value: "optional:configserver:"
             - name: SERVER_PORT
               value: {{ .Values.apps.setupABe.port | quote }}
+            - name: SERVER_FORWARD_HEADERS_STRATEGY
+              value: framework
             - name: SETUP_A_DB_URL
               value: {{ printf "jdbc:mysql://%s:3306/setup_a?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul" .Values.statefulServices.mysql | quote }}
             - name: AUTH_SERVICE_URL
@@ -345,4 +355,3 @@ spec:
           {{- include "qc-app.springProbes" . | nindent 10 }}
           resources:
             {{- toYaml .Values.apps.setupABe.resources | nindent 12 }}
-
