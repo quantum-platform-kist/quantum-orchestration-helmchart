@@ -102,6 +102,12 @@ spec:
             periodSeconds: 15
           resources:
             {{- toYaml .Values.redis.resources | nindent 12 }}
+      {{- if eq .Values.global.storageMode "ephemeral" }}
+      volumes:
+        - name: data
+          emptyDir:
+            {{- toYaml (default dict .Values.redis.emptyDir) | nindent 12 }}
+      {{- else }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -112,4 +118,5 @@ spec:
         resources:
           requests:
             storage: {{ .Values.redis.storage }}
+      {{- end }}
 {{- end }}

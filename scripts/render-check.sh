@@ -83,4 +83,6 @@ if grep -Eq 'type: (NodePort|LoadBalancer)' "${OUT_DIR}/qc-prod-stateful.yaml" "
   exit 1
 fi
 
+python3 "${ROOT}/scripts/render-check-ephemeral.py"
+
 echo "render checks passed: ${OUT_DIR}"

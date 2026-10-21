@@ -1,0 +1,27 @@
+{{- /* Evaluate even when every service is disabled; this template emits no resources. */ -}}
+{{- $mode := .Values.global.storageMode -}}
+{{- if not (has $mode (list "persistent" "ephemeral")) -}}
+{{- fail "global.storageMode must be persistent or ephemeral" -}}
+{{- end -}}
+{{- if .Values.kafka.enabled -}}
+{{- include "qc-stateful.kafkaRetentionGuard" . -}}
+{{- end -}}
+{{- if eq $mode "ephemeral" -}}
+{{- if .Values.backup.enabled -}}
+{{- fail "ephemeral storageMode cannot enable PVC backup (backup.enabled must be false)" -}}
+{{- end -}}
+{{- if eq .Values.global.namespace "quantum-cloud-prod" -}}
+{{- fail "ephemeral storageMode requires a new namespace, not quantum-cloud-prod" -}}
+{{- end -}}
+{{- if ne .Values.global.namespace .Release.Namespace -}}
+{{- fail "ephemeral global.namespace must match Release.Namespace (--namespace)" -}}
+{{- end -}}
+{{- if or (ne (int .Values.mysql.instances) 1) (ne (int .Values.mysql.routers) 0) -}}
+{{- fail "ephemeral MySQL requires mysql.instances=1 and mysql.routers=0" -}}
+{{- end -}}
+{{- range $key, $topic := .Values.kafka.topics -}}
+{{- if ne (int $topic.replicationFactor) 1 -}}
+{{- fail (printf "ephemeral Kafka requires replicationFactor=1 for topic %s" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

@@ -85,6 +85,71 @@ spec:
             periodSeconds: 20
           resources:
             {{- toYaml .Values.minio.resources | nindent 12 }}
+        {{- if eq .Values.global.storageMode "ephemeral" }}
+        - name: bucket-bootstrap
+          image: {{ include "qc-stateful.fullImage" .Values.minio.mcImage }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.minio.credentialsSecret }}
+                  key: {{ .Values.minio.accessKeyKey }}
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.minio.credentialsSecret }}
+                  key: {{ .Values.minio.secretKeyKey }}
+            - name: MODULE_STORAGE_BUCKET
+              value: {{ .Values.minio.bucket | quote }}
+            - name: MC_CONFIG_DIR
+              value: /tmp/qc-mc
+          command:
+            - sh
+            - -ec
+          args:
+            - |
+              set -eu
+              umask 077
+              mkdir -p "$MC_CONFIG_DIR"
+              chmod 700 "$MC_CONFIG_DIR"
+              if ! timeout -k 5 590 sh -ec '
+                until timeout -k 2 20 mc alias set qc http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; do
+                  sleep 3
+                done
+                until timeout -k 2 20 mc mb --ignore-existing "qc/$MODULE_STORAGE_BUCKET" >/dev/null 2>&1 &&
+                      timeout -k 2 10 mc stat "qc/$MODULE_STORAGE_BUCKET" >/dev/null 2>&1; do
+                  sleep 3
+                done
+              '; then
+                echo "MinIO bucket bootstrap failed or timed out" >&2
+                exit 1
+              fi
+              echo "MinIO bucket is initialized"
+              trap 'exit 0' TERM INT
+              while :; do
+                sleep 3600 &
+                wait "$!"
+              done
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - timeout -k 1 5 mc stat "qc/$MODULE_STORAGE_BUCKET" >/dev/null 2>&1
+            periodSeconds: 10
+            timeoutSeconds: 8
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: data
+          emptyDir:
+            {{- toYaml (default dict .Values.minio.emptyDir) | nindent 12 }}
+        {{- else }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -147,4 +212,5 @@ spec:
               done
               mc mb --ignore-existing "qc/$MODULE_STORAGE_BUCKET"
               echo "minio bucket is initialized"
+        {{- end }}
 {{- end }}

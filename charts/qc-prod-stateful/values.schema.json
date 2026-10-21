@@ -5,12 +5,15 @@
   "properties": {
     "global": {
       "type": "object",
-      "required": ["namespace", "storageClassName", "nodePlacement"],
+      "required": ["namespace", "nodePlacement", "storageMode"],
       "properties": {
         "namespace": { "type": "string", "minLength": 1 },
         "storageClassName": { "type": "string", "minLength": 1 },
         "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
-        "imagePullSecrets": { "type": "array", "items": { "type": "string" } },
+        "imagePullSecrets": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "nodePlacement": {
           "type": "object",
           "required": ["data", "web"],
@@ -18,12 +21,13 @@
             "data": { "type": "object" },
             "web": { "type": "object" }
           }
-        }
+        },
+        "storageMode": { "type": "string", "enum": ["persistent", "ephemeral"] }
       }
     },
     "mysql": {
       "type": "object",
-      "required": ["name", "version", "storage", "rootExistingSecret", "appCredentialsSecret", "schemas"],
+      "required": ["name", "version", "rootExistingSecret", "appCredentialsSecret", "schemas"],
       "properties": {
         "enabled": { "type": "boolean" },
         "name": { "type": "string", "minLength": 1 },
@@ -31,23 +35,71 @@
         "storage": { "type": "string", "minLength": 1 },
         "rootExistingSecret": { "type": "string", "minLength": 1 },
         "appCredentialsSecret": { "type": "string", "minLength": 1 },
-        "schemas": { "type": "object", "minProperties": 4 }
+        "schemas": { "type": "object", "minProperties": 4 },
+        "emptyDir": { "$ref": "#/definitions/emptyDir" },
+        "instances": { "type": "integer" },
+        "routers": { "type": "integer" }
       }
     },
     "kafka": {
       "type": "object",
-      "required": ["name", "image", "storage", "clusterId", "retentionBudgetBytes", "topics"],
+      "required": ["name", "image", "clusterId", "retentionBudgetBytes", "topics"],
       "properties": {
         "enabled": { "type": "boolean" },
         "name": { "type": "string", "minLength": 1 },
         "clusterId": { "type": "string", "minLength": 1 },
         "retentionBudgetBytes": { "type": "integer", "minimum": 1 },
-        "topics": { "type": "object", "minProperties": 1 }
+        "topics": { "type": "object", "minProperties": 1 },
+        "emptyDir": { "$ref": "#/definitions/emptyDir" }
       }
     },
-    "redis": { "type": "object" },
-    "minio": { "type": "object" },
-    "backup": { "type": "object" }
-  }
+    "redis": {
+      "type": "object",
+      "properties": {
+        "emptyDir": { "$ref": "#/definitions/emptyDir" },
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "minio": {
+      "type": "object",
+      "properties": {
+        "emptyDir": { "$ref": "#/definitions/emptyDir" },
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    }
+  },
+  "definitions": {
+    "emptyDir": {
+      "type": "object",
+      "properties": {
+        "sizeLimit": { "type": "string", "pattern": "^(\\+?[0-9]+(\\.[0-9]*)?|\\+?\\.[0-9]+)([eE][+-]?[0-9]+|[numkMGTPE]|[KMGTPE]i)?$" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "global": {
+            "properties": {
+              "storageMode": { "const": "persistent" }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "global": { "required": ["storageClassName"] },
+          "mysql": { "required": ["storage"] },
+          "kafka": { "required": ["storage"] }
+        }
+      }
+    }
+  ]
 }
-

@@ -43,6 +43,7 @@ spec:
           port: 9092
         - protocol: TCP
           port: 9093
+{{- if eq .Values.global.storageMode "persistent" }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -86,3 +87,4 @@ spec:
           port: 33060
         - protocol: TCP
           port: 33061
+{{- end }}

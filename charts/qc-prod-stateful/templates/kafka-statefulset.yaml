@@ -121,12 +121,65 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/kafka/data
+          {{- if eq .Values.global.storageMode "ephemeral" }}
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - bash
+                  - -ec
+                  - |
+                    set -euo pipefail
+                    rm -f /tmp/qc-kafka-bootstrap-complete
+                    export KAFKA_HEAP_OPTS="-Xms64m -Xmx128m"
+                    if ! timeout -k 5 590 bash -euo pipefail <<'QC_KAFKA_BOOTSTRAP'
+                    until timeout -k 2 20 /opt/kafka/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --list >/dev/null 2>&1; do
+                      sleep 3
+                    done
+                    {{- range $key, $topic := .Values.kafka.topics }}
+                    timeout -k 2 25 /opt/kafka/bin/kafka-topics.sh \
+                      --bootstrap-server 127.0.0.1:9092 \
+                      --create --if-not-exists \
+                      --topic {{ $topic.name | quote }} \
+                      --partitions {{ default 1 $topic.partitions }} \
+                      --replication-factor {{ default 1 $topic.replicationFactor }} \
+                      --config cleanup.policy=delete \
+                      --config retention.ms={{ int64 (default $.Values.kafka.defaultRetentionMs $topic.retentionMs) }} \
+                      --config retention.bytes={{ int64 (required (printf "kafka.topics.%s.retentionBytes is required" $key) $topic.retentionBytes) }} >/dev/null 2>&1
+                    timeout -k 2 25 /opt/kafka/bin/kafka-configs.sh \
+                      --bootstrap-server 127.0.0.1:9092 \
+                      --entity-type topics \
+                      --entity-name {{ $topic.name | quote }} \
+                      --alter \
+                      --add-config cleanup.policy=delete,retention.ms={{ int64 (default $.Values.kafka.defaultRetentionMs $topic.retentionMs) }},retention.bytes={{ int64 $topic.retentionBytes }} >/dev/null 2>&1
+                    {{- end }}
+                    touch /tmp/qc-kafka-bootstrap-complete
+                    QC_KAFKA_BOOTSTRAP
+                    then
+                      echo "Kafka bootstrap failed or timed out" >&2
+                      exit 1
+                    fi
+                    echo "Kafka topics are initialized"
+          startupProbe:
+            exec:
+              command:
+                - bash
+                - -ec
+                - test -f /tmp/qc-kafka-bootstrap-complete && KAFKA_HEAP_OPTS="-Xms64m -Xmx128m" timeout -k 1 8 /opt/kafka/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --list >/dev/null 2>&1
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 60
+          {{- end }}
           readinessProbe:
             exec:
               command:
                 - bash
                 - -ec
+                {{- if eq .Values.global.storageMode "ephemeral" }}
+                - test -f /tmp/qc-kafka-bootstrap-complete && KAFKA_HEAP_OPTS="-Xms64m -Xmx128m" timeout -k 1 8 /opt/kafka/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --list >/dev/null 2>&1
+                {{- else }}
                 - /opt/kafka/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --list >/dev/null
+                {{- end }}
             periodSeconds: 10
             timeoutSeconds: 10
             failureThreshold: 12
@@ -137,6 +190,12 @@ spec:
             timeoutSeconds: 5
           resources:
             {{- toYaml .Values.kafka.resources | nindent 12 }}
+      {{- if eq .Values.global.storageMode "ephemeral" }}
+      volumes:
+        - name: data
+          emptyDir:
+            {{- toYaml (default dict .Values.kafka.emptyDir) | nindent 12 }}
+      {{- else }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -147,4 +206,5 @@ spec:
         resources:
           requests:
             storage: {{ .Values.kafka.storage }}
+      {{- end }}
 {{- end }}

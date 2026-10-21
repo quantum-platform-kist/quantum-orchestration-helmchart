@@ -1,0 +1,42 @@
+# 새 임시 namespace/release 전용입니다. 기존 release의 모드 전환에 사용하지 마십시오.
+# 차트 기본값 → prod-app-images.yaml → 이 파일 순으로 적용하십시오.
+global:
+  namespace: quantum-cloud-ephemeral
+  hosts:
+    shell: qc-ephemeral.quantum-instrument.com
+    modules: modules.qc-ephemeral.quantum-instrument.com
+  issuer: https://qc-ephemeral.quantum-instrument.com
+  gateway:
+    name: qc-ephemeral-gateway
+    namespace: quantum-cloud-ephemeral
+    shellSectionName: qc-ephemeral-shell-https
+    moduleSectionName: qc-ephemeral-modules-https
+  nodePlacement:
+    web:
+      nodeSelector: null
+      affinity: null
+      tolerations: []
+
+secrets:
+  app:
+    name: qc-ephemeral-app-secrets
+
+httpRoutes:
+  enabled: false
+
+apps:
+  auth:
+    replicas: 1
+    allowDefaultAdmin: false
+  gateway:
+    replicas: 1
+  setupRegistry:
+    replicas: 1
+  jobOrchestrator:
+    replicas: 1
+  setupABe:
+    replicas: 1
+  shell:
+    replicas: 1
+  setupModules:
+    replicas: 1

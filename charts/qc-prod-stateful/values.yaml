@@ -1,5 +1,6 @@
 global:
   namespace: quantum-cloud-prod
+  storageMode: persistent
   storageClassName: fab-lvm-retain
   imagePullPolicy: IfNotPresent
   imagePullSecrets: []
@@ -42,6 +43,7 @@ mysql:
   instances: 1
   routers: 1
   storage: 80Gi
+  emptyDir: {}
   rootExistingSecret: qc-mysql-root
   rootPasswordKey: rootPassword
   appCredentialsSecret: qc-prod-app-secrets
@@ -79,6 +81,7 @@ redis:
     repository: redis
     tag: 7-alpine
   storage: 4Gi
+  emptyDir: {}
   existingSecret: ""
   passwordKey: redis-password
   resources:
@@ -96,6 +99,7 @@ kafka:
     tag: "3.8.0"
   clusterId: MkU3OEVBNTcwNTJENDM2Qk
   storage: 40Gi
+  emptyDir: {}
   retentionBudgetBytes: 30064771072
   defaultRetentionMs: 604800000
   resources:
@@ -158,6 +162,7 @@ minio:
     repository: minio/mc
     tag: RELEASE.2025-04-16T18-13-26Z
   storage: 60Gi
+  emptyDir: {}
   bucket: setup-modules
   credentialsSecret: qc-prod-app-secrets
   accessKeyKey: MODULE_STORAGE_ACCESS_KEY
@@ -177,4 +182,3 @@ backup:
     tag: "9.6.0"
   pvc:
     storage: 20Gi
-

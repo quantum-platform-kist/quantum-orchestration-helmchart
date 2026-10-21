@@ -4,7 +4,6 @@ metadata:
   name: {{ include "qc-stateful.namespace" . }}
   labels:
     {{- include "qc-stateful.labels" . | nindent 4 }}
-    app.kubernetes.io/name: quantum-cloud-prod
+    app.kubernetes.io/name: {{ if eq .Values.global.storageMode "ephemeral" }}{{ include "qc-stateful.namespace" . }}{{ else }}quantum-cloud-prod{{ end }}
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
-

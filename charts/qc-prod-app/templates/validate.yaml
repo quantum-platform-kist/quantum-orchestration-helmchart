@@ -1,0 +1,3 @@
+{{- if and (not .Values.httpRoutes.enabled) (ne .Values.global.namespace .Release.Namespace) -}}
+{{- fail "httpRoutes.enabled=false requires global.namespace to match the release namespace (--namespace)" -}}
+{{- end -}}

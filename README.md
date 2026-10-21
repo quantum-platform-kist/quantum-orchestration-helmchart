@@ -161,3 +161,70 @@ RFSoC worker start/cancel consumer, end publisher daemon, 외부 Kafka TLS/SASL/
 - Modules nginx는 `/module-assets/**`를 Registry로 보냅니다. MinIO를 브라우저에 직접 노출하지 않습니다.
 - Modules nginx는 `/api/setup-a/setups/{setupId}/setup-a/**`만 실제 `setup-a-be`의 `/setups/{setupId}/setup-a/**` REST/WS endpoint로 보냅니다.
 - Shell origin과 modules origin은 분리됩니다. iframe setup scoped token MessagePort 격리를 유지합니다.
+
+## PVC 없는 임시 검증 배포
+
+기본 `global.storageMode`는 `persistent`입니다. 새 `values/ephemeral-stateful.yaml`을 선택하면 MySQL·Kafka·Redis·MinIO의 데이터 경로를 디스크 기반 `emptyDir`로 만듭니다. PVC/PV/StorageClass, MySQL Operator/InnoDBCluster 없이 설치할 수 있습니다. 앱의 `httpRoutes.enabled` 기본값은 `true`이며, `ephemeral-app.yaml`은 이를 `false`로 설정하므로 Gateway API CRD도 필요하지 않습니다.
+
+**Pod 삭제·교체·재스케줄 또는 클러스터 폐기 시 데이터가 소실됩니다.** 같은 Pod 안의 컨테이너 재시작은 `emptyDir`를 지우지 않습니다. MySQL의 네 빈 schema/사용자, Kafka의 일곱 토픽, MinIO의 `setup-modules` 버킷은 새 Pod에서 자동 재초기화되지만 영속 데이터·실험 이력·모듈 artifact는 복구되지 않습니다. Redis는 빈 데이터로 시작합니다. `emptyDir.sizeLimit`은 용량 예약이 아니며 노드 디스크 여유가 필요합니다. 임시 Kafka retention 합계는 112MiB, budget은 256MiB이며 실제 디스크 사용량의 엄밀한 상한은 아닙니다.
+
+**반드시 새 namespace와 새 release에 `helm install`하십시오. 기존 release를 persistent ↔ ephemeral로 전환하는 `upgrade`는 금지합니다.** 운영 `quantum-cloud-prod`에는 적용하지 않습니다. 기본 임시 namespace는 `quantum-cloud-ephemeral`이고 다른 새 namespace도 가능합니다. stateful의 `global.namespace`와 `--namespace`는 일치해야 합니다. 앱도 HTTPRoute를 끈 경우 두 값의 일치를 검사합니다. `ephemeral`과 `backup.enabled=true` 조합은 PVC backup 충돌로 렌더 오류가 납니다. Argo/prod/dev values와 `dev` 브랜치는 기존대로 유지합니다.
+
+아래 명령은 **이 저장소 폴더 안**에서, 사용자가 선택한 임시 클러스터/context를 대상으로 실행하는 순서입니다. 설치 전에 대상 context가 임시 환경인지 확인하십시오. stateful chart가 Namespace를 소유하므로 새 namespace를 먼저 생성하고 Helm 소유 metadata를 지정한 뒤 Secret을 준비합니다. 이미 사용 중인 namespace의 소유권을 변경하지 마십시오. namespace 생성이 `AlreadyExists`로 실패하면 이후 명령을 진행하지 말고 다른 새 namespace를 선택하십시오. 첫 설치에 `--create-namespace`, `--wait`, `--atomic`을 붙이지 않습니다.
+
+```bash
+cd /home/ccxz84/quantum-cloud/quantum-orchestration-helmchart
+QC_EPHEMERAL_NAMESPACE=quantum-cloud-ephemeral
+
+kubectl create namespace "$QC_EPHEMERAL_NAMESPACE"
+kubectl label namespace "$QC_EPHEMERAL_NAMESPACE" app.kubernetes.io/managed-by=Helm
+kubectl annotate namespace "$QC_EPHEMERAL_NAMESPACE" \
+  meta.helm.sh/release-name=qc-ephemeral-stateful \
+  meta.helm.sh/release-namespace="$QC_EPHEMERAL_NAMESPACE"
+```
+
+Namespace 생성과 Helm 소유 metadata 지정이 끝나면, Helm 설치 전에 그 namespace 안에 다음 Secret을 별도로 준비하십시오. 운영 Secret을 복사하거나 읽지 말고 임시 자격증명을 사용하십시오. Secret 값은 안전한 기존 입력 수단으로 주입하고 shell history·콘솔·로그·저장소에 남기지 않습니다. 차트는 Secret 객체를 생성하지 않습니다.
+
+| Secret | 필요한 key |
+|---|---|
+| `qc-ephemeral-mysql-root` | `rootPassword` — 새 임시 root 값은 `[A-Za-z0-9_-]` 문자만으로 24자 이상 |
+| `qc-ephemeral-app-secrets` — 데이터 서비스 | `AUTH_DB_USERNAME`, `AUTH_DB_PASSWORD`, `SETUP_REGISTRY_DB_USERNAME`, `SETUP_REGISTRY_DB_PASSWORD`, `JOB_ORCHESTRATOR_DB_USERNAME`, `JOB_ORCHESTRATOR_DB_PASSWORD`, `SETUP_A_DB_USERNAME`, `SETUP_A_DB_PASSWORD`, `MODULE_STORAGE_ACCESS_KEY`, `MODULE_STORAGE_SECRET_KEY` |
+| 같은 app Secret — 앱용 | `JWT_KEY_ID`, `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, `JWT_REFRESH_SECRET`, `AUTH_SEED_REGISTRY_CLIENT_SECRET`, `SETUP_REGISTRY_AUTH_CLIENT_SECRET`, `JOB_ORCHESTRATOR_AUTH_CLIENT_SECRET`, `SETUP_A_AUTH_CLIENT_SECRET`, `LOCAL_ADMIN_EMAIL`, `LOCAL_ADMIN_PASSWORD`, `LOCAL_ADMIN_NICKNAME` |
+| `ghcr` | 해당 namespace에서 기존 고정 GHCR 이미지를 받을 imagePullSecret |
+
+네 DB username은 서로 다르게 준비하며 각 계정은 자기 DB에만 권한을 받습니다. `AUTH_SEED_REGISTRY_CLIENT_SECRET`과 `SETUP_REGISTRY_AUTH_CLIENT_SECRET`은 동일해야 합니다. 앱의 기본 관리자 허용은 `false`이므로 임시 관리자 정보도 이 정책에 맞게 준비합니다. Secret/imagePullSecret 준비 전의 Pending/CreateContainerConfigError/ImagePullBackOff는 설치 완료 상태가 아닙니다.
+
+아래 **values 순서**로 기존 이미지 digest와 `prod-stateful.yaml`의 MinIO/`mc` GHCR mirror를 먼저 상속하고 임시 저장·배치 설정만 덮어씁니다. Docker Hub의 예전 MinIO/`mc` 태그 제공 중단 때문에 실제 설치 시 `prod-stateful.yaml`을 생략하지 마십시오. ephemeral 파일 단독 렌더는 가능하지만 이미지 다운로드 성공을 보장하지 않습니다.
+
+```bash
+# 별도 Secret 준비가 끝난 뒤 stateful chart를 설치합니다.
+helm install qc-ephemeral-stateful ./charts/qc-prod-stateful \
+  --namespace "$QC_EPHEMERAL_NAMESPACE" \
+  -f values/prod-stateful.yaml \
+  -f values/ephemeral-stateful.yaml \
+  --set-string global.namespace="$QC_EPHEMERAL_NAMESPACE"
+
+# 데이터 서비스 기동을 기다립니다.
+for workload in qc-mysql qc-kafka qc-redis qc-minio; do
+  kubectl --namespace "$QC_EPHEMERAL_NAMESPACE" rollout status \
+    "statefulset/$workload" --timeout=900s
+done
+
+# 앱은 prod-app.yaml / prod-app-online.yaml 없이 아래 두 파일만 순서대로 사용합니다.
+helm install qc-ephemeral-app ./charts/qc-prod-app \
+  --namespace "$QC_EPHEMERAL_NAMESPACE" \
+  -f values/prod-app-images.yaml \
+  -f values/ephemeral-app.yaml \
+  --set-string global.namespace="$QC_EPHEMERAL_NAMESPACE" \
+  --set-string global.gateway.namespace="$QC_EPHEMERAL_NAMESPACE"
+```
+
+앱은 기존 digest의 7개 Deployment를 replica 1로 렌더링합니다. 빈 DB에 대한 앱 Flyway 실행, 서비스 계정 온보딩, 셋업 등록, 모듈 upload/activate는 별도 절차입니다. MySQL Pod 교체 후에도 앱의 전체 재온보딩을 자동으로 수행하지 않습니다.
+
+임시 호스트 `qc-ephemeral.quantum-instrument.com`과 `modules.qc-ephemeral.quantum-instrument.com`, `qc-ephemeral-gateway` 참조는 **환경 설정값**이며 DNS/TLS/Gateway listener를 실제 생성하지 않습니다. `global.dnsResolver`도 대상 클러스터의 DNS resolver 주소로 구성해야 하는 환경 설정값이며 기본 `10.96.0.10`이 모든 환경에 맞는 것은 아닙니다. 외부 접근에는 별도의 DNS·TLS·Gateway 및 `global.trustedProxies` 설정이 필요합니다. 라우트를 켜면 그 임시 host/listener 참조의 HTTPRoute 두 개만 생성합니다. 기존 HTTPS 쿠키, JWT/JWKS, nginx, CORS/CSP, iframe origin 격리는 유지합니다.
+
+MySQL 초기화가 중간에 실패하면 완료 marker가 없어 Ready가 되지 않습니다. 자동 데이터 삭제는 하지 않습니다. 원인과 임시 Secret을 수정한 뒤 **해당 임시 namespace의 MySQL Pod만 재생성**하면 새 `emptyDir`에서 다시 초기화됩니다. 이 복구도 기존 임시 DB 데이터를 모두 잃으므로 다른 namespace/release에 실행하지 마십시오.
+
+렌더 회귀 검사는 `./scripts/render-check.sh`로 실행합니다(Helm 3, Python 3, PyYAML 필요). 기존 9개 조합과 임시 프로필, 네 data `emptyDir`, 금지 스토리지/운영 참조 부재, namespace 변경, route toggle, 잘못된 mode/bool·backup 조합 실패를 검사합니다. 이 정적 검사는 실제 서비스 기동·입출력·Pod 교체 검증을 대신하지 않습니다.
+
+2026-10-21 로컬 kind(Kubernetes 1.31.4) 검증에서 PVC/PV/StorageClass 각각 0개, 데이터 StatefulSet 4개와 앱 Deployment 7개 Ready를 확인했습니다. 네 데이터 서비스 입출력, 각 Pod 교체 후 빈 저장소 재초기화와 기존 데이터 소실, Gateway를 통한 임시 관리자 로그인·사용자 조회도 통과했습니다. 이 검증은 외부 DNS/TLS 설정이나 셋업·모듈 온보딩 완료를 의미하지 않습니다.

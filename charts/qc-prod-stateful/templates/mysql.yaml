@@ -1,4 +1,4 @@
-{{- if .Values.mysql.enabled }}
+{{- if and .Values.mysql.enabled (eq .Values.global.storageMode "persistent") }}
 apiVersion: mysql.oracle.com/v2
 kind: InnoDBCluster
 metadata:

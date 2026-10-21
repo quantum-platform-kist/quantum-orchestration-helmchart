@@ -1,0 +1,71 @@
+# 임시 검증 전용: Pod 교체 시 모든 데이터가 소실됩니다.
+# 권장 순서: prod-stateful.yaml → ephemeral-stateful.yaml (기존 digest/GHCR mirror 유지).
+global:
+  namespace: quantum-cloud-ephemeral
+  storageMode: ephemeral
+  storageClassName: null
+  nodePlacement:
+    data:
+      nodeSelector: null
+      affinity: null
+      tolerations: []
+    web:
+      nodeSelector: null
+      affinity: null
+      tolerations: []
+
+mysql:
+  enabled: true
+  instances: 1
+  routers: 0
+  storage: null
+  emptyDir:
+    sizeLimit: 2Gi
+  rootExistingSecret: qc-ephemeral-mysql-root
+  appCredentialsSecret: qc-ephemeral-app-secrets
+
+redis:
+  enabled: true
+  storage: null
+  emptyDir:
+    sizeLimit: 512Mi
+
+kafka:
+  enabled: true
+  storage: null
+  emptyDir:
+    sizeLimit: 2Gi
+  defaultRetentionMs: 3600000
+  retentionBudgetBytes: 268435456
+  topics:
+    stp_nv_a1_experiment_start:
+      retentionMs: 3600000
+      retentionBytes: 16777216
+    stp_nv_a1_experiment_cancel:
+      retentionMs: 3600000
+      retentionBytes: 16777216
+    stp_nv_a1_experiment_data:
+      retentionMs: 3600000
+      retentionBytes: 16777216
+    stp_nv_a1_experiment_end:
+      retentionMs: 3600000
+      retentionBytes: 16777216
+    stp_nv_a1_experiment_start_event:
+      retentionMs: 3600000
+      retentionBytes: 16777216
+    stp_nv_a1_experiment_dlq:
+      retentionMs: 3600000
+      retentionBytes: 16777216
+    key_rotation_events:
+      retentionMs: 3600000
+      retentionBytes: 16777216
+
+minio:
+  enabled: true
+  storage: null
+  emptyDir:
+    sizeLimit: 2Gi
+  credentialsSecret: qc-ephemeral-app-secrets
+
+backup:
+  enabled: false
