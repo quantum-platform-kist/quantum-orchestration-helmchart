@@ -186,7 +186,7 @@ spec:
             - name: JWT_ISSUER
               value: {{ .Values.global.issuer | quote }}
             - name: MODULE_STORAGE_ENDPOINT
-              value: {{ printf "http://%s:9000" .Values.statefulServices.minio | quote }}
+              value: {{ default (printf "http://%s:9000" .Values.statefulServices.minio) .Values.apps.setupRegistry.moduleStorageEndpoint | quote }}
             - name: MODULE_STORAGE_BUCKET
               value: {{ .Values.apps.setupRegistry.moduleStorageBucket | quote }}
             - name: MODULE_PUBLIC_BASE_URL

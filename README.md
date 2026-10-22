@@ -2,6 +2,159 @@
 
 이 저장소는 Quantum Cloud 제품 배포 전용 chart입니다. 공유 `gateway-system/main-gateway`, GatewayClass, cert-manager, MySQL operator, OpenEBS StorageClass는 여기서 만들거나 수정하지 않습니다.
 
+**NKS 공공 클라우드의 새 운영/개발 배포는 바로 아래 NKS 절차를 사용하십시오.** 그 밖의 기존 운영 명령은 FAB 환경의 hostname·StorageClass·Gateway를 전제로 합니다. 기존 prod/dev/ephemeral values와 Argo CD Application, 이미지 digest는 그대로 유지합니다. `dev` 브랜치는 향후 `prod`로 사용할 예정이며 이번 변경에서 rename하거나 기존 Argo `targetRevision`을 변경하지 않습니다.
+
+## NKS 공공 클라우드 운영/개발 배포
+
+이 프로필은 **새 NKS 클러스터/배포에 데이터를 복원하는 경우**에 사용합니다. 기존 PVC의 StorageClass를 제자리에서 변경하지 않습니다. StorageClass·PV·Node·Gateway 자체는 chart가 생성하지 않으며 `volumeName`이나 PV selector로 기존 볼륨을 지정하지 않습니다.
+
+### 사전 준비와 저장·배치 설정
+
+- MSP가 `nks-block-storage-retain` StorageClass와 CSI를 준비하고 실제 reclaim policy가 `Retain`인지 확인해야 합니다. 모든 PVC는 `ReadWriteOnce`이며 최소 10Gi, 10Gi 단위입니다. persistent MySQL에는 현재 chart의 MySQL 버전과 호환되는 MySQL Operator/CRD가 필요하며, 기존 NetworkPolicy가 Operator 통신 원천을 `mysql-operator` namespace로 허용하므로 Operator는 해당 namespace에 준비해야 합니다.
+- MSP가 data 노드풀에 `qc.quantum-cloud/role=data` label과 `qc.quantum-cloud/dedicated=data:NoSchedule` taint를 적용합니다. app 노드풀에는 `qc.quantum-cloud/role=app` label을 적용하며 app 전용 taint는 사용하지 않습니다. data Pod는 해당 toleration을 쓰고, 앱·웹·MySQL Router·bootstrap Job·backup Job은 app 노드풀을 사용합니다. override는 기존 hostname selector와 affinity를 명시적 `null`로 제거합니다.
+- 기존 Gateway 구현/Gateway API CRD와 대상 Gateway·HTTPS listener를 외부에서 먼저 준비합니다. listener가 QC namespace의 HTTPRoute를 허용해야 하며 TLS 인증서와 서로 다른 shell/modules DNS host도 필요합니다. 차트는 Gateway나 인증서, DNS 레코드를 만들지 않습니다.
+- NKS 기본값은 MinIO와 backup 모두 비활성입니다. 각 데이터 볼륨과 외부 S3 API 구조이므로 현재 구성에 NAS는 필요하지 않습니다. backup을 별도로 켜면 20Gi/RWO PVC에 같은 Retain StorageClass를 사용합니다.
+
+| 프로필 | Namespace | MySQL | Kafka | Redis | MinIO를 별도 재활성화할 때 |
+|---|---|---|---|---|---|
+| NKS 운영 | `quantum-cloud-prod` | 80Gi | 40Gi | 10Gi | 60Gi |
+| NKS 개발 | `quantum-cloud-dev` | 20Gi | 10Gi | 10Gi | 10Gi |
+
+MinIO 재활성화 시 내부 저장소를 쓰려면 앱의 `apps.setupRegistry.moduleStorageEndpoint`도 빈 문자열로 바꾸고 bucket/credentials를 함께 검토해야 합니다. endpoint가 비면 기존 `http://qc-minio:9000`으로 돌아갑니다.
+
+### 현장 site-values 필수 입력
+
+NKS app override는 `dnsResolver`, `trustedProxies`, host, Gateway 참조, issuer의 기존 FAB 값을 지우고 `httpRoutes.enabled: false`로 시작합니다. **DNS/host 미입력은 schema 검사에서 실패합니다.** 아래 파일의 `<...>`를 MSP가 확인한 실제 값으로 모두 교체해 별도로 보관하십시오. DNS는 Pod에서 사용할 실제 cluster DNS IP, proxy CIDR은 Auth가 신뢰할 실제 프록시 대역이며 기존 `10.96.0.10`/`10.244.2.0/24`를 그대로 복사하지 않습니다. `issuer`는 shell의 실제 HTTPS origin입니다. 외부 Gateway/listener·TLS·DNS 준비가 끝난 경우에만 아래처럼 HTTPRoute를 켭니다.
+
+운영 `site-values-prod.yaml`:
+
+```yaml
+global:
+  namespace: quantum-cloud-prod
+  dnsResolver: "<실제_CLUSTER_DNS_IP>"
+  trustedProxies: "<실제_PROXY_CIDR>"
+  hosts:
+    shell: "<운영_SHELL_DNS_HOST>"
+    modules: "<운영_MODULES_DNS_HOST>"
+  issuer: "https://<운영_SHELL_DNS_HOST>"
+  gateway:
+    name: "<기존_GATEWAY_NAME>"
+    namespace: "<기존_GATEWAY_NAMESPACE>"
+    shellSectionName: "<운영_SHELL_HTTPS_LISTENER>"
+    moduleSectionName: "<운영_MODULES_HTTPS_LISTENER>"
+httpRoutes:
+  enabled: true
+```
+
+개발 `site-values-dev.yaml`:
+
+```yaml
+global:
+  namespace: quantum-cloud-dev
+  dnsResolver: "<실제_CLUSTER_DNS_IP>"
+  trustedProxies: "<실제_PROXY_CIDR>"
+  hosts:
+    shell: "<개발_SHELL_DNS_HOST>"
+    modules: "<개발_MODULES_DNS_HOST>"
+  issuer: "https://<개발_SHELL_DNS_HOST>"
+  gateway:
+    name: "<기존_GATEWAY_NAME>"
+    namespace: "<기존_GATEWAY_NAMESPACE>"
+    shellSectionName: "<개발_SHELL_HTTPS_LISTENER>"
+    moduleSectionName: "<개발_MODULES_HTTPS_LISTENER>"
+httpRoutes:
+  enabled: true
+```
+
+위 placeholder는 배포 가능한 값이 아닙니다. 로컬 렌더 검사의 `192.0.2.53` 같은 DNS IP와 `198.51.100.0/24` 같은 CIDR도 예제용이며 실제 NKS 설정을 의미하지 않습니다. 라우트를 끈 채 검증할 때도 nginx/JWT 설정에 사용할 실제 DNS·host·issuer는 필요합니다. shell/modules origin 분리, iframe 격리, TLS, JWT/JWKS와 기존 계정 동작은 유지합니다.
+
+### Namespace 소유권과 Secret
+
+**Namespace의 유일한 Helm owner는 stateful release입니다.** 새 NKS context를 확인한 뒤, Secret을 먼저 준비하려면 아래처럼 새 namespace를 만들고 stateful release의 Helm 소유 metadata를 붙입니다. `QC_NKS_ENV`는 이번에 설치할 환경 하나를 선택합니다. namespace 생성이 `AlreadyExists`로 실패하면 중단하고 소유권을 확인하십시오. 기존 namespace를 임의로 가져오지 않습니다.
+
+```bash
+cd /home/ccxz84/quantum-cloud/quantum-orchestration-helmchart
+QC_NKS_ENV=prod # 개발 설치 시 dev
+QC_NKS_NAMESPACE="quantum-cloud-${QC_NKS_ENV}"
+QC_NKS_STATEFUL_RELEASE="qc-nks-${QC_NKS_ENV}-stateful"
+
+kubectl create namespace "$QC_NKS_NAMESPACE"
+kubectl label namespace "$QC_NKS_NAMESPACE" app.kubernetes.io/managed-by=Helm
+kubectl annotate namespace "$QC_NKS_NAMESPACE" \
+  meta.helm.sh/release-name="$QC_NKS_STATEFUL_RELEASE" \
+  meta.helm.sh/release-namespace="$QC_NKS_NAMESPACE"
+```
+
+그 namespace에 다음 Secret을 안전한 별도 절차로 생성한 뒤 설치합니다. Secret 값은 저장소·shell history·콘솔·로그에 남기지 않습니다. key 계약은 아래 [필수 Secret 계약](#필수-secret-계약)과 같으며 개발은 이름만 구분합니다. `MODULE_STORAGE_ACCESS_KEY`/`MODULE_STORAGE_SECRET_KEY`에는 해당 환경의 Object Storage 권한을 가진 자격증명을 넣습니다. 서비스 신원과 JWT/비밀번호 계약도 그대로 유지합니다.
+
+| 환경 | MySQL root Secret | 앱/DB/Object Storage Secret | 이미지 pull Secret |
+|---|---|---|---|
+| 운영 | `qc-mysql-root` | `qc-prod-app-secrets` | `ghcr` |
+| 개발 | `qc-dev-mysql-root` | `qc-dev-app-secrets` | `ghcr` |
+
+`--namespace`, stateful/app의 `global.namespace`와 site-values의 namespace는 모두 일치해야 합니다. 앱 chart는 Namespace를 소유하지 않습니다. 이미 준비한 namespace에 설치하므로 아래 명령에는 `--create-namespace`를 붙이지 않습니다.
+
+### 정확한 values 순서와 설치
+
+아래는 현장 값을 채우고 Secret·버킷을 준비한 뒤 실행할 명령입니다. `prod-stateful.yaml`과 `prod-app-images.yaml`을 포함해 기존 고정 이미지를 사용합니다. 표의 왼쪽부터 오른쪽 순서를 지키며 site-values는 항상 마지막에 둡니다. site-values에는 위 환경 설정만 넣고 replica나 이미지는 변경하지 않습니다.
+
+| 대상 | values 순서 | 앱 replica |
+|---|---|---|
+| 운영 stateful | `prod-stateful` → `nks-prod-stateful` | — |
+| 개발 stateful | `prod-stateful` → `dev-stateful` → `nks-dev-stateful` | — |
+| 운영 app staging | `prod-app` → `prod-app-images` → `nks-prod-app` → `site-values-prod` | 0 |
+| 운영 app online | `prod-app` → `prod-app-images` → `nks-prod-app` → `prod-app-online` → `site-values-prod` | 1 |
+| 개발 app | `prod-app` → `dev-app` → `prod-app-images` → `nks-dev-app` → `site-values-dev` | 1 |
+
+운영은 데이터 복원과 정합성 확인 동안 앱을 0 replica로 유지합니다.
+
+```bash
+helm install qc-nks-prod-stateful ./charts/qc-prod-stateful \
+  --namespace quantum-cloud-prod \
+  -f values/prod-stateful.yaml -f values/nks-prod-stateful.yaml
+
+helm install qc-nks-prod-app ./charts/qc-prod-app \
+  --namespace quantum-cloud-prod \
+  -f values/prod-app.yaml -f values/prod-app-images.yaml \
+  -f values/nks-prod-app.yaml -f site-values-prod.yaml
+
+# DB 복원, 데이터 서비스/bootstrap 완료, 버킷·모듈 파일 정합성을 확인한 뒤 실행합니다.
+helm upgrade qc-nks-prod-app ./charts/qc-prod-app \
+  --namespace quantum-cloud-prod \
+  -f values/prod-app.yaml -f values/prod-app-images.yaml \
+  -f values/nks-prod-app.yaml -f values/prod-app-online.yaml \
+  -f site-values-prod.yaml
+```
+
+개발은 별도 namespace/Secret/버킷을 준비하고 데이터 서비스와 필요한 복원/bootstrap을 마친 다음 앱을 설치합니다.
+
+```bash
+helm install qc-nks-dev-stateful ./charts/qc-prod-stateful \
+  --namespace quantum-cloud-dev \
+  -f values/prod-stateful.yaml -f values/dev-stateful.yaml \
+  -f values/nks-dev-stateful.yaml
+
+helm install qc-nks-dev-app ./charts/qc-prod-app \
+  --namespace quantum-cloud-dev \
+  -f values/prod-app.yaml -f values/dev-app.yaml \
+  -f values/prod-app-images.yaml -f values/nks-dev-app.yaml \
+  -f site-values-dev.yaml
+```
+
+online 운영과 개발의 `job-orchestrator`/`setup-a-be`는 각각 1 replica와 `Recreate`를 유지합니다. 실제 설치 전에 같은 values 순서로 `helm lint`/`helm template`을 실행하고, 설치 후에는 데이터 서비스·bootstrap 및 앱 상태와 실제 동작을 별도로 확인하십시오.
+
+### Object Storage·메일·실연동 확인
+
+NKS 프로필의 Object Storage endpoint는 MSP가 제공한 `https://kr.object.gov-ncloudstorage.com`입니다. 운영은 기존 버킷 `kist-obj`, 개발은 **별도 요청·생성이 필요한** `kist-obj-dev`를 사용합니다. 차트는 외부 버킷을 만들지 않습니다. 앱은 기존 Secret key를 그대로 읽고, `apps.setupRegistry.moduleStorageEndpoint`에 지정한 HTTP/HTTPS endpoint를 사용합니다. 해당 필드의 기본 빈 문자열은 기존 내부 MinIO endpoint를 선택합니다.
+
+endpoint는 HTTP(S) 호스트와 선택적 포트·루트 `/`만 허용합니다(예: `https://object.example.invalid:9443/`). 경로 prefix, query, fragment, userinfo는 허용하지 않습니다.
+
+버킷별 필요한 조회·업로드·다운로드·삭제 권한과 SDK region 자동 탐색에 필요한 bucket location 조회 권한을 확인하고, 기존 모듈 object를 DB 메타데이터의 key와 맞춰 이전해야 합니다. 외부 endpoint 설정만으로 기존 파일이 옮겨지지 않습니다. MSP region은 `gov-standard`이지만 **현재 앱에는 region 설정 기능이 없으며 `MODULE_STORAGE_REGION`을 추가하지 않습니다.** 현재 MinIO SDK의 region 자동 탐색과 NCP 공공 Object Storage의 실제 호환성은 별도 실연동 검증 대상입니다. 자격증명을 준비한 현장에서 실제 공공 endpoint로 bucket location 접근·업로드·다운로드와 Registry의 모듈 upload/activate·조회까지 확인해야 합니다.
+
+메일은 현재 `mock`을 유지합니다. Auth가 지원하는 모드는 `mock`/`smtp`뿐이며 NCP 메일 REST API는 미구현입니다. 정부 endpoint `https://mail.apigw.gov-ntruss.com/api/v1`을 사용하려면 별도의 앱 REST API 구현과 실연동 검증이 필요합니다. 이번 Helm 변경은 새 메일 모드나 앱 이미지를 가정하지 않습니다.
+
+`./scripts/render-check.sh`는 기존 프로필과 NKS 4개 프로필·운영 online의 정적 렌더를 검사합니다. NKS 클러스터 접속과 자격증명 없이 수행하는 렌더 검사는 스토리지 프로비저닝, Object Storage 호환성, TLS·로그인·모듈 및 실제 실험 실행 검증을 대신하지 않습니다. 이번 변경의 NKS 런타임 검증은 미실행입니다.
+
 ## 구조
 
 - `charts/qc-prod-stateful`: `quantum-cloud-prod` Namespace의 유일한 owner입니다. QC 전용 MySQL `InnoDBCluster`, Redis, Kafka 3.8 KRaft, MinIO, 초기 topic/bucket/schema bootstrap Job만 렌더링합니다.
@@ -119,7 +272,7 @@ valueFiles:
   - ../../values/prod-app-online.yaml
 ```
 
-## 배포 순서
+## 기존 FAB 운영 배포 순서
 
 1. 공유 infra repo에서 `qc-shell-https`, `qc-modules-https` listener와 `qc-tls` SAN을 반영합니다. 이 작업은 `quantum-cloud-helmchart` owner 경로에서만 수행합니다.
 2. 운영 Secret을 생성합니다. 값은 화면과 로그에 출력하지 않습니다.

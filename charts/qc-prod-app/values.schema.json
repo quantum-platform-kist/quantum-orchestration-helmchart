@@ -57,6 +57,17 @@
           "properties": {
             "allowDefaultAdmin": { "type": "boolean" }
           }
+        },
+        "setupRegistry": {
+          "type": "object",
+          "required": ["moduleStorageEndpoint", "moduleStorageBucket"],
+          "properties": {
+            "moduleStorageEndpoint": {
+              "type": "string",
+              "pattern": "^$|^https?://[^\\s/?#@\\\\]+/?$"
+            },
+            "moduleStorageBucket": { "type": "string", "minLength": 1 }
+          }
         }
       }
     }

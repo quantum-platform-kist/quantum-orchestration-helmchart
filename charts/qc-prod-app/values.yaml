@@ -101,6 +101,7 @@ apps:
   setupRegistry:
     replicas: 0
     port: 8085
+    moduleStorageEndpoint: ""
     moduleStorageBucket: setup-modules
     moduleMaxFileSize: 25MB
     moduleMaxRequestSize: 25MB

@@ -1,0 +1,41 @@
+# 신규 NKS 클러스터 전용: prod-stateful.yaml 다음에 적용합니다.
+# 기존 PVC의 StorageClass 변경에 사용하지 말고 데이터를 별도로 복원합니다.
+global:
+  storageMode: persistent
+  storageClassName: nks-block-storage-retain
+  nodePlacement:
+    data:
+      nodeSelector:
+        kubernetes.io/hostname: null
+        qc.quantum-cloud/role: data
+      affinity: null
+      tolerations:
+        - key: qc.quantum-cloud/dedicated
+          operator: Equal
+          value: data
+          effect: NoSchedule
+    web:
+      nodeSelector:
+        kubernetes.io/hostname: null
+        qc.quantum-cloud/role: app
+      affinity: null
+      tolerations: []
+
+mysql:
+  storage: 80Gi
+
+kafka:
+  storage: 40Gi
+
+redis:
+  storage: 10Gi
+
+minio:
+  enabled: false
+  # Object Storage 사용이 기본이며, 재활성화해도 10Gi 단위를 유지합니다.
+  storage: 60Gi
+
+backup:
+  enabled: false
+  pvc:
+    storage: 20Gi

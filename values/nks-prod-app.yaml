@@ -1,0 +1,33 @@
+# prod-app.yaml, prod-app-images.yaml 다음에 적용합니다(staging: replicas=0).
+# online 전환에는 prod-app-online.yaml을 마지막 프로필로 추가합니다.
+# 배포 현장의 DNS/hosts/Gateway/proxy 설정은 별도 site-values로 입력합니다.
+global:
+  dnsResolver: ""
+  trustedProxies: ""
+  hosts:
+    shell: ""
+    modules: ""
+  gateway:
+    name: ""
+    namespace: ""
+    shellSectionName: ""
+    moduleSectionName: ""
+  issuer: ""
+  nodePlacement:
+    web:
+      nodeSelector:
+        kubernetes.io/hostname: null
+        qc.quantum-cloud/role: app
+      affinity: null
+      tolerations: []
+
+httpRoutes:
+  # MSP가 Gateway/listener/TLS/DNS를 준비한 후 site-values에서 활성화합니다.
+  enabled: false
+
+apps:
+  auth:
+    mailDeliveryMode: mock
+  setupRegistry:
+    moduleStorageEndpoint: https://kr.object.gov-ncloudstorage.com
+    moduleStorageBucket: kist-obj
