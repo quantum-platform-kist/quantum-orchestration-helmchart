@@ -8,6 +8,18 @@ allprojects {
     configurations.configureEach {
         resolutionStrategy.eachDependency { details ->
             def requested = details.requested
+            // useVersion also rewrites native project selectors. Preserve this build's
+            // project graph; otherwise Core's sibling projects become unpublished
+            // external modules before publishToMavenLocal has run.
+            boolean sameBuildProject = rootProject.allprojects.any { candidate ->
+                def baseExtension = candidate.extensions.findByName('base')
+                def artifactName = baseExtension == null ? candidate.name : baseExtension.archivesName.getOrElse(candidate.name)
+                candidate.group.toString() == requested.group &&
+                        (candidate.name == requested.name || artifactName == requested.name)
+            }
+            if (sameBuildProject) {
+                return
+            }
             boolean localCore = new File(workspaceRoot, 'core').isDirectory() &&
                     requested.group == 'com.quantumcloud' &&
                     (requested.name.startsWith('quantum-cloud-core-') || requested.name == 'quantum-cloud-cores')
