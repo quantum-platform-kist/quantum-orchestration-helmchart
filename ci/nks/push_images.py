@@ -2,12 +2,13 @@ import json
 import os
 import re
 import subprocess
-from common import BUILD, read_snapshot, token, write_json, main_guard
+from common import BUILD, read_snapshot, validate_release, token, write_json, main_guard
 
 
 def main():
     release = json.loads((BUILD / "release.json").read_text())
     snapshot = read_snapshot()
+    validate_release(snapshot, release)
     if not release["images"]:
         return
     credential = token("GHCR_TOKEN")

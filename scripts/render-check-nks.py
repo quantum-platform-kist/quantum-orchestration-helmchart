@@ -13,6 +13,11 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 STORAGE_CLASS = "nks-block-storage-retain"
 OBJECT_ENDPOINT = "https://kr.object.gov-ncloudstorage.com"
+DEV_DNS = {
+    "hosts": {"shell": "qc-dev.quantum-instrument.com",
+              "modules": "modules.qc-dev.quantum-instrument.com"},
+    "issuer": "https://qc-dev.quantum-instrument.com",
+}
 PROFILES = {
     "prod-stateful": ["prod-stateful", "nks-prod-stateful"],
     "dev-stateful": ["prod-stateful", "dev-stateful", "nks-dev-stateful"],
@@ -40,7 +45,7 @@ def require(condition, message):
         raise AssertionError(message)
 
 
-def command(profile, extra=(), site=None, action="template"):
+def command(profile, extra=(), site=None, action="template", value_files=None):
     chart = "stateful" if profile.endswith("stateful") else "app"
     environment = profile.split("-")[0]
     args = ["helm", action]
@@ -48,7 +53,7 @@ def command(profile, extra=(), site=None, action="template"):
         args.append(f"qc-{environment}-{chart}")
     args += [str(ROOT / "charts" / f"qc-prod-{chart}"),
              "--namespace", f"quantum-cloud-{environment}"]
-    for name in PROFILES[profile]:
+    for name in (PROFILES[profile] if value_files is None else value_files):
         args += ["-f", str(ROOT / "values" / f"{name}.yaml")]
     if site:
         args += ["-f", str(site)]
@@ -59,8 +64,8 @@ def run(args):
     return subprocess.run(args, cwd=ROOT, text=True, capture_output=True, timeout=30)
 
 
-def render(profile, extra=(), site=None, save=False):
-    result = run(command(profile, extra, site))
+def render(profile, extra=(), site=None, save=False, value_files=None):
+    result = run(command(profile, extra, site, value_files=value_files))
     require(result.returncode == 0, f"렌더 실패: {profile}\n{result.stderr}")
     docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc is not None]
     require(docs and all(isinstance(doc, dict) for doc in docs),
@@ -203,7 +208,7 @@ def check_job_service_credentials(docs, secret, setup_id="stp_nv_a1"):
             "Job must not use a static Registry bearer token")
 
 
-def check_app(docs, profile, endpoint=OBJECT_ENDPOINT, routes=False):
+def check_app(docs, profile, endpoint=OBJECT_ENDPOINT, routes=False, site_global=SITE_GLOBAL):
     deployments = resources(docs, "Deployment")
     require(set(deployments) == {"auth", "gateway", "setup-registry", "job-orchestrator",
                                  "setup-a-be", "shell", "setup-modules"},
@@ -232,10 +237,10 @@ def check_app(docs, profile, endpoint=OBJECT_ENDPOINT, routes=False):
     require("MODULE_STORAGE_REGION" not in env, "지원하지 않는 region env를 추가하면 안 됩니다")
     auth = environment(docs, "auth")
     require(auth["MAIL_DELIVERY_MODE"]["value"] == "mock", "현재 메일 모드는 mock이어야 합니다")
-    require(auth["TRUSTED_PROXIES"]["value"] == SITE_GLOBAL["trustedProxies"],
+    require(auth["TRUSTED_PROXIES"]["value"] == site_global["trustedProxies"],
             "현장 proxy CIDR이 전달되지 않았습니다")
     for config in resources(docs, "ConfigMap").values():
-        require(f"resolver {SITE_GLOBAL['dnsResolver']} " in config["data"]["default.conf"],
+        require(f"resolver {site_global['dnsResolver']} " in config["data"]["default.conf"],
                 "현장 DNS resolver가 nginx에 전달되지 않았습니다")
     rendered_routes = resources(docs, "HTTPRoute")
     require(len(rendered_routes) == (2 if routes else 0), "HTTPRoute 기본 비활성/현장 활성화 계약이 다릅니다")
@@ -243,12 +248,64 @@ def check_app(docs, profile, endpoint=OBJECT_ENDPOINT, routes=False):
         for name, host, listener in (("qc-shell", "shell", "shellSectionName"),
                                      ("qc-modules", "modules", "moduleSectionName")):
             spec = rendered_routes[name]["spec"]
-            require(spec["hostnames"] == [SITE_GLOBAL["hosts"][host]], "현장 hostname이 다릅니다")
+            require(spec["hostnames"] == [site_global["hosts"][host]], "현장 hostname이 다릅니다")
             parent = spec["parentRefs"][0]
-            require(parent["name"] == SITE_GLOBAL["gateway"]["name"] and
-                    parent["namespace"] == SITE_GLOBAL["gateway"]["namespace"] and
-                    parent["sectionName"] == SITE_GLOBAL["gateway"][listener],
+            require(parent["name"] == site_global["gateway"]["name"] and
+                    parent["namespace"] == site_global["gateway"]["namespace"] and
+                    parent["sectionName"] == site_global["gateway"][listener],
                     "현장 Gateway/listener가 전달되지 않았습니다")
+
+
+def check_dev_origins(docs):
+    shell, modules = (f"https://{DEV_DNS['hosts'][key]}" for key in ("shell", "modules"))
+    expected_env = {
+        "auth": {"APP_BASE_URL": shell},
+        "gateway": {"CORS_ALLOWED_ORIGIN": shell, "CORS_ALLOWED_ORIGIN_2": modules},
+        "setup-registry": {"MODULE_PUBLIC_BASE_URL": f"{modules}/module-assets",
+                           "MODULE_SHELL_ORIGIN": shell},
+        "setup-a-be": {"SETUP_A_ALLOWED_ORIGINS": f"{shell},{modules}"},
+        "job-orchestrator": {},
+    }
+    for name, expected in expected_env.items():
+        if name != "gateway":
+            expected["JWT_ISSUER"] = DEV_DNS["issuer"]
+        env = environment(docs, name)
+        for key, value in expected.items():
+            require(env[key]["value"] == value, f"{name}/{key}: 개발 origin/issuer가 다릅니다")
+    configs = resources(docs, "ConfigMap")
+    shell_config = configs["shell-nginx"]["data"]["default.conf"]
+    require(f"connect-src 'self' {shell} wss://{DEV_DNS['hosts']['shell']} "
+            f"{modules} wss://{DEV_DNS['hosts']['modules']};" in shell_config and
+            f"frame-src {modules};" in shell_config, "개발 shell CSP origin이 다릅니다")
+    require(f'add_header Allow-CSP-From "{shell}" always;' in
+            configs["setup-modules-nginx"]["data"]["default.conf"],
+            "모듈의 개발 shell CSP 허용 origin이 다릅니다")
+    routes = resources(docs, "HTTPRoute")
+    if routes:
+        for name, key in (("qc-shell", "shell"), ("qc-modules", "modules")):
+            require(routes[name]["spec"]["hostnames"] == [DEV_DNS["hosts"][key]],
+                    f"{name}: 개발 HTTPRoute host가 다릅니다")
+
+
+def check_dev_dns_overlay():
+    overlay = yaml.safe_load((ROOT / "values/dev-dns.yaml").read_text())
+    require(overlay == {"global": DEV_DNS}, "dev-dns는 확정 hosts/issuer만 변경해야 합니다")
+    legacy = ["prod-app", "prod-app-images", "prod-app-online"]
+    lint = run(command("prod-app-online", action="lint", value_files=legacy + ["dev-dns"]))
+    require(lint.returncode == 0, lint.stdout + lint.stderr)
+    before = render("prod-app-online", value_files=legacy)
+    after = render("prod-app-online", value_files=legacy + ["dev-dns"])
+    check_dev_origins(after)
+    require(len(resources(after, "HTTPRoute")) == 2, "기존 HTTPRoute 2개를 유지해야 합니다")
+    old_hosts = yaml.safe_load((ROOT / "values/prod-app.yaml").read_text())["global"]["hosts"]
+    actual = normalized = yaml.safe_dump(after)
+    for key in ("modules", "shell"):
+        require(old_hosts[key] not in actual, f"기존 {key} host가 렌더에 남았습니다")
+        normalized = normalized.replace(DEV_DNS["hosts"][key], old_hosts[key])
+    # 주소만 되돌린 전체 리소스 비교로 namespace/Secret/image/replica/placement와
+    # 데이터 서비스·Gateway/listener 참조 등 나머지 설정의 보존을 함께 검사합니다.
+    require(normalized == yaml.safe_dump(before), "dev-dns가 주소 외의 배포 설정을 변경했습니다")
+    print("PASS 개발 DNS-only lint/렌더: origin·issuer·CORS·CSP·HTTPRoute·Module URL 변경, 나머지 리소스 보존")
 
 
 def check_profile_inputs():
@@ -262,6 +319,16 @@ def check_profile_inputs():
         if name.endswith("app"):
             require(values["global"]["dnsResolver"] == "" and
                     values["global"]["trustedProxies"] == "", f"{name}: 기존 DNS/proxy 상속 금지")
+            require(values["global"]["gateway"] == dict.fromkeys(SITE_GLOBAL["gateway"], "") and
+                    values["httpRoutes"]["enabled"] is False,
+                    f"{name}: 미확정 Gateway 참조/HTTPRoute 비활성 계약이 다릅니다")
+            expected = DEV_DNS if name == "nks-dev-app" else {
+                "hosts": {"shell": "", "modules": ""}, "issuer": ""}
+            require(all(values["global"][key] == value for key, value in expected.items()),
+                    f"{name}: 운영 미확정/개발 확정 hosts·issuer 계약이 다릅니다")
+    dev = yaml.safe_load((ROOT / "values/dev-app.yaml").read_text())["global"]
+    require(all(dev[key] == value for key, value in DEV_DNS.items()),
+            "기존 dev-app과 개발 DNS 계약이 다릅니다")
 
 
 def reject(label, profile, extra, site, reason):
@@ -273,6 +340,7 @@ def reject(label, profile, extra, site, reason):
 
 def main():
     check_profile_inputs()
+    check_dev_dns_overlay()
     with TemporaryDirectory(prefix="qc-nks-render-") as directory:
         site = Path(directory) / "site-values.yaml"
         site.write_text(yaml.safe_dump({"global": SITE_GLOBAL}))
@@ -296,6 +364,17 @@ def main():
             check_common(minio, profile)
             check_stateful(minio, environment_name, minio=True)
         print("PASS NKS 운영/개발 backup 20Gi retain/RWO·app 배치 및 MinIO 재활성화 60/10Gi")
+
+        # 확정 hosts/issuer를 덮지 않고, 미확정 인프라 값만 현장 테스트값으로 채웁니다.
+        dev_site = Path(directory) / "dev-infra-values.yaml"
+        dev_site.write_text(yaml.safe_dump({"global": {
+            key: value for key, value in SITE_GLOBAL.items() if key not in DEV_DNS}}))
+        for routes_enabled in (False, True):
+            docs = render("dev-app", ["--set", f"httpRoutes.enabled={str(routes_enabled).lower()}"], dev_site)
+            check_common(docs, "dev-app")
+            check_app(docs, "dev-app", routes=routes_enabled, site_global=SITE_GLOBAL | DEV_DNS)
+            check_dev_origins(docs)
+        print("PASS NKS 개발 확정 hosts/issuer: 인프라 테스트값 보완·HTTPRoute off/on")
 
         for profile in ("prod-app-online", "dev-app"):
             routes = render(profile, ["--set", "httpRoutes.enabled=true"], site)

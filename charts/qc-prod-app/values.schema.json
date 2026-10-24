@@ -8,6 +8,7 @@
       "required": ["namespace", "hosts", "gateway", "issuer", "nodePlacement"],
       "properties": {
         "namespace": { "type": "string", "minLength": 1 },
+        "deploymentEnvironment": { "type": "string", "enum": ["dev", "prod"] },
         "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
         "dnsResolver": { "type": "string", "minLength": 1 },
         "hosts": {

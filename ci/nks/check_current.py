@@ -1,12 +1,13 @@
-from common import github, read_snapshot, token, output, main_guard
+from common import github, read_snapshot, validate_snapshot, token, output, main_guard
 
 
 def main():
     snapshot = read_snapshot()
+    contract = validate_snapshot(snapshot)
     credential = token("NKS_SOURCE_TOKEN")
     current = True
     for source in snapshot["sources"].values():
-        tip = github("GET", "/repos/" + source["repository"] + "/git/ref/heads/prod", credential)["object"]["sha"]
+        tip = github("GET", "/repos/" + source["repository"] + "/git/ref/heads/" + contract["branch"], credential)["object"]["sha"]
         if tip != source["sha"]:
             current = False
     output("current", "true" if current else "false")

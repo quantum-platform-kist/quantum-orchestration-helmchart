@@ -1,0 +1,15 @@
+# 2026-10-24 root 적용 증거에 따른 검토 예시입니다. 이미 발급된 자원을 재적용하지 않습니다.
+# 별도 qc-dev-tls Certificate/Secret이며 기존 qc-tls는 변경하지 않습니다.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: qc-dev-tls
+  namespace: gateway-system
+spec:
+  secretName: qc-dev-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - qc-dev.quantum-instrument.com
+  - modules.qc-dev.quantum-instrument.com

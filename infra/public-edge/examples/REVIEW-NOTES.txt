@@ -1,0 +1,53 @@
+온프레미스 dev 공개 경로의 적용 이력 및 검토 자료입니다. Helm/Argo에서 자동 적용하지 않습니다.
+
+대상: 161.122.93.243 → HAProxy TCP → 10.42.2.2:443 →
+gateway-system/main-gateway(Cilium) → quantum-cloud-prod의 기존 앱.
+NKS prod와 namespace 문자열이 같아도 서로 다른 클러스터입니다.
+두 dev A 레코드는 161.122.93.243이어야 하며 조사 당시 175.45.220.187은 잘못된 NKS 주소였습니다.
+
+실제 소유 경로
+- 별도 argocd/gateway Application의 spec.source.kustomize.patches[1].patch가
+  /spec/listeners 전체를 replace합니다. target은 gateway-system/main-gateway입니다.
+- Gateway 리소스를 직접 patch하거나 공유 repo 파일만 수정하면 Application selfHeal로 되돌아갑니다.
+- root는 기존 7개 listener와 addresses 및 다른 override를 보존한 채 같은 Application patch에
+  qc-dev-shell-https/qc-dev-modules-https를 append했습니다. 기존 qc.* hostname은 바꾸지 않았습니다.
+- qc-prod-app의 valuesObject.global.gateway.shellSectionName/moduleSectionName은 각각
+  qc-dev-shell-https/qc-dev-modules-https입니다. 기존 Route 이름/backend/namespace와
+  gateway-system/main-gateway 부모 참조는 유지합니다.
+
+별도 인증서
+- onprem-qc-dev-tls-certificate.yaml.example은 root가 적용한 별도 Certificate/Secret
+  qc-dev-tls(gateway-system)의 예시입니다. 기존 qc-tls Certificate/Secret은 변경하지 않습니다.
+- issuer는 기존 letsencrypt-prod ClusterIssuer이며 DNS01로 dev 두 host를 발급했습니다.
+  *.quantum-instrument.com은 modules.qc-dev.quantum-instrument.com을 포함하지 않습니다.
+- root가 Ready=True를 확인했습니다. 이 예시는 spec만 담으며 상태 증명이나 개인키를 포함하지 않습니다.
+
+Application patch 예시와 재적용 금지
+- onprem-dev-gateway-application.jsonpatch.example은 root의 실제 적용 patch를 복사한 이력 예시입니다.
+  대상은 Gateway 리소스가 아니라 argocd/gateway Application입니다.
+- 당시 resourceVersion 8053940과 기존 patch 원문을 test한 뒤
+  /spec/source/kustomize/patches/1/patch를 replace합니다. 이 안의 listener 목록은 7개에서 9개로 늘어납니다.
+- 이미 적용한 예시를 재적용하지 않습니다. 향후 변경 시 최신 Application resourceVersion, patch 배열의
+  target 및 patch 원문을 다시 조회하고 기존 모든 listener를 보존하는 변경을 root가 검토합니다.
+  예시의 resourceVersion만 바꾸어 강제 재사용하지 않습니다. 현장 배열 index도 다시 확인합니다.
+
+2026-10-24 root 적용 결과와 증거
+- 별도 qc-dev-tls DNS01 발급 Ready=True, 기존 qc-tls 보존.
+- HAProxy는 사용자 sudo 명시 승인 후 백업/검증/reload 완료, active 상태.
+- 161.122.93.243으로 resolve한 dev TLS 검증 성공. 당시 dev Route 미연결로 HTTP 404(예상).
+- 근거 디렉터리: /home/ccxz84/quantum-cloud/.codex-runs/dev-cicd-20261024/
+  onprem-acme-gateway.json: issuer와 기존 Gateway Application override 조사.
+  gateway-application-before-dev.json: 적용 전 Application/resourceVersion/기존 7 listener.
+  gateway-application-dev-listeners.jsonpatch: root가 적용한 Application patch.
+  onprem-dev-certificate.json: 별도 Certificate spec(Ready 상태 자체는 포함하지 않음).
+  public-edge-applied.json: HAProxy 백업/active/reload 및 사용자 승인 근거.
+  Ready=True와 TLS/404 결과는 root가 별도로 확인하여 보고한 라이브 결과입니다.
+- 이번 executor는 위 증거를 읽어 로컬 예시/문서와 app Route 참조를 정합화했습니다.
+  클러스터 적용, SSH, 인증서 발급, HAProxy reload를 실행하지 않았습니다.
+
+남은 순서: DNS 정정/전파 확인 → qc-prod-app dev 이미지/도메인 및 두 sectionName sync →
+Route Accepted/ResolvedRefs와 HTTPS 앱 응답·모듈 검증.
+기존 namespace, PVC, DB, MinIO, Secret을 생성/삭제/이전하지 않습니다.
+modulePublish.enabled=false의 Argo 상위 파라미터는 신규 dev 이미지·셋업·Secret 검증까지 유지합니다.
+앱 자동 동기화 selfHeal=true/prune=false 적용은 root가 판단하며 stateful 구조는 변경하지 않습니다.
+보드 실행 워커는 별도 담당입니다.

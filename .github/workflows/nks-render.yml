@@ -1,9 +1,9 @@
 name: NKS Helm validation
 on:
   push:
-    branches: [prod]
+    branches: [prod, dev]
   pull_request:
-    branches: [prod]
+    branches: [prod, dev]
 permissions:
   contents: read
 jobs:
@@ -36,3 +36,5 @@ jobs:
         run: bash scripts/render-check.sh
       - name: Validate immutable NKS image overrides and publisher hook
         run: python3 ci/nks/validate_values.py
+      - name: Test CI environment isolation without external writes
+        run: python3 -m unittest discover -s ci/nks/tests -v

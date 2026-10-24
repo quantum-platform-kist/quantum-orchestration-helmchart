@@ -1,6 +1,12 @@
-name: NKS private repository build
+name: Cloud private repository build
 on:
   workflow_call:
+    inputs:
+      deployment_environment:
+        description: Approved deployment environment (dev or prod)
+        required: false
+        type: string
+        default: prod
     secrets:
       NKS_SOURCE_TOKEN:
         required: true
@@ -10,15 +16,25 @@ on:
         required: false
 jobs:
   build:
-    if: github.ref == 'refs/heads/prod' && github.repository != 'quantum-platform-kist/quantum-orchestration-helmchart'
+    if: github.repository != 'quantum-platform-kist/quantum-orchestration-helmchart'
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    env:
+      NKS_DEPLOYMENT_ENVIRONMENT: ${{ inputs.deployment_environment }}
     steps:
+      - name: Validate deployment environment and caller branch
+        shell: bash
+        run: |
+          case "$NKS_DEPLOYMENT_ENVIRONMENT" in
+            dev|prod) ;;
+            *) echo 'deployment_environment must be dev or prod'; exit 1 ;;
+          esac
+          test "$GITHUB_REF" = "refs/heads/$NKS_DEPLOYMENT_ENVIRONMENT"
       - name: Checkout public CI tooling only
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: quantum-platform-kist/quantum-orchestration-helmchart
-          ref: prod
+          ref: ${{ inputs.deployment_environment }}
           path: tooling
           persist-credentials: false
       - name: Resolve immutable private source snapshot
@@ -57,7 +73,7 @@ jobs:
           GHCR_TOKEN: ${{ github.token }}
           GHCR_USERNAME: ${{ github.actor }}
         run: python3 tooling/ci/nks/push_images.py
-      - name: Update only NKS prod component digest values
+      - name: Update only the selected environment component digests
         if: steps.current.outputs.current == 'true'
         env:
           NKS_GITOPS_TOKEN: ${{ secrets.NKS_GITOPS_TOKEN }}

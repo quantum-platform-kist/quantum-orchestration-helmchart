@@ -1,0 +1,9 @@
+{
+  "images": {
+    "jobOrchestrator": {
+      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-job/job-orchestrator",
+      "tag": "prod-84f821a8fc3e-40067119289-1",
+      "digest": "sha256:bf4048c3336b69e42fb70bef677f1961c18d69aebf162e9110332e8e717a99e6"
+    }
+  }
+}

@@ -148,6 +148,8 @@ wait_for_haproxy_port "${HTTP_PORT}" "HAProxy HTTP frontend"
 
 tls_must_pass "qc.quantum-instrument.com"
 tls_must_pass "modules.qc.quantum-instrument.com"
+tls_must_pass "qc-dev.quantum-instrument.com"
+tls_must_pass "modules.qc-dev.quantum-instrument.com"
 tls_must_block "unknown-sni" -servername "argocd.quantum-instrument.com"
 tls_must_block "absent-sni"
 
@@ -158,6 +160,16 @@ printf 'HTTP redirect OK: qc.quantum-instrument.com -> %s\n' "${code}"
 code="$(http_code "modules.qc.quantum-instrument.com")"
 [ "${code}" = "308" ] || die "expected HTTP 308 for modules host, got ${code}"
 printf 'HTTP redirect OK: modules.qc.quantum-instrument.com -> %s\n' "${code}"
+
+for host in qc-dev.quantum-instrument.com modules.qc-dev.quantum-instrument.com; do
+  for host_header in "${host}" "${host}:80"; do
+    code="$(http_code "${host_header}")"
+    [ "${code}" = "308" ] || die "expected HTTP 308 for ${host_header}, got ${code}"
+    redirect="$(curl -sS -o /dev/null -w '%{redirect_url}' -H "Host: ${host_header}" "http://127.0.0.1:${HTTP_PORT}/probe?x=1")"
+    [ "${redirect}" = "https://${host_header}/probe?x=1" ] || die "unexpected redirect for ${host_header}: ${redirect}"
+    printf 'HTTP redirect OK: %s -> %s\n' "${host_header}" "${code}"
+  done
+done
 
 code="$(http_code "argocd.quantum-instrument.com")"
 [ "${code}" = "421" ] || die "expected HTTP 421 for unknown host, got ${code}"

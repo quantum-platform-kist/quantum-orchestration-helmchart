@@ -1,0 +1,11 @@
+{
+  "modulePublish": {
+    "enabled": false,
+    "image": {
+      "repository": "ghcr.io/quantum-platform-kist/quantum-setup-nv-frontend/module-publisher",
+      "tag": "prod-24db3255a3c1-40059161194-1",
+      "digest": "sha256:22e1402f642bb4df70f86cf3aee9f0456b72a1b8df136474702c5a62ab5778ba"
+    },
+    "version": "nks-c535aebd3289-40059161194-1"
+  }
+}

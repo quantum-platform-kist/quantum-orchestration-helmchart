@@ -40,6 +40,14 @@ spec:
           image: {{ include "qc-app.image" $publish.image }}
           imagePullPolicy: IfNotPresent
           env:
+            {{- if eq (default "prod" .Values.global.deploymentEnvironment) "dev" }}
+            - name: NKS_DEPLOYMENT_ENVIRONMENT
+              value: dev
+            - name: NKS_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- end }}
             - name: HOME
               value: /tmp
             - name: MYSQLSH_USER_CONFIG_HOME

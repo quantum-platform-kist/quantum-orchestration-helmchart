@@ -2,9 +2,12 @@
 set -euo pipefail
 ci_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}"
+python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from common import read_snapshot, validate_snapshot; validate_snapshot(read_snapshot())' "$ci_dir"
 alias="$(python3 -c 'import json; print(json.load(open("build/source-snapshot.json"))["alias"])')"
 runtime="$(python3 -c 'import json; print(json.load(open("build/source-snapshot.json"))["runtime"])')"
-export NKS_BUILD_VERSION="0.0.0-nks-${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
+build_prefix=nks
+if [[ "${NKS_DEPLOYMENT_ENVIRONMENT:-prod}" == dev ]]; then build_prefix=onprem-dev; fi
+export NKS_BUILD_VERSION="0.0.0-${build_prefix}-${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
 export VERSION="$NKS_BUILD_VERSION"
 export GRADLE_OPTS="-Dmaven.repo.local=${RUNNER_TEMP:?}/nks-m2"
 export GRADLE_USER_HOME="$RUNNER_TEMP/nks-gradle"

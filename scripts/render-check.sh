@@ -85,5 +85,6 @@ fi
 
 python3 "${ROOT}/scripts/render-check-ephemeral.py"
 python3 "${ROOT}/scripts/render-check-nks.py"
+python3 "${ROOT}/scripts/render-check-environments.py"
 
 echo "render checks passed: ${OUT_DIR}"

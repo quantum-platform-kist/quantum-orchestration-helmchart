@@ -1,17 +1,17 @@
 # prod-app.yaml, dev-app.yaml, prod-app-images.yaml 다음에 적용합니다(replicas=1).
-# 배포 현장의 DNS/hosts/Gateway/proxy 설정은 별도 site-values로 입력합니다.
+# 개발 hosts/issuer는 확정값이며 cluster DNS/Gateway/proxy는 별도 site-values로 입력합니다.
 global:
   dnsResolver: ""
   trustedProxies: ""
   hosts:
-    shell: ""
-    modules: ""
+    shell: qc-dev.quantum-instrument.com
+    modules: modules.qc-dev.quantum-instrument.com
   gateway:
     name: ""
     namespace: ""
     shellSectionName: ""
     moduleSectionName: ""
-  issuer: ""
+  issuer: https://qc-dev.quantum-instrument.com
   nodePlacement:
     web:
       nodeSelector:

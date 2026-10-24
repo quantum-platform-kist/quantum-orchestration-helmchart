@@ -1,4 +1,4 @@
-"""NKS-only module publication. No returned URLs are followed and no credential is logged."""
+"""Environment-bound module publication. No returned URLs are followed and no credential is logged."""
 import hashlib
 import io
 import json
@@ -9,12 +9,10 @@ import sys
 from urllib import error, request
 import uuid
 import zipfile
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from environments import deployment_contract
 
 
-SHELL = "http://shell.quantum-cloud-prod.svc.cluster.local:8080"
-MODULES = "http://setup-modules.quantum-cloud-prod.svc.cluster.local:8080"
-ORIGIN = "https://qc.quantum-instrument.com"
-MODULE_ORIGIN = "https://modules.qc.quantum-instrument.com"
 SETUP_ID = "stp_nv_a1"
 VERSION = ""  # Set only from the verified local artifact manifest before API calls.
 PREFIX = "/server/api/setups/" + SETUP_ID
@@ -22,6 +20,19 @@ PREFIX = "/server/api/setups/" + SETUP_ID
 
 class StopPublication(Exception):
     pass
+
+
+def runtime_contract():
+    try:
+        contract = deployment_contract()
+    except RuntimeError:
+        raise StopPublication("invalid_deployment_environment") from None
+    # Both clusters deliberately use the existing namespace name. Branch and
+    # public origins distinguish environments; never infer from the word prod.
+    namespace = os.environ.get("NKS_POD_NAMESPACE", contract["namespace"] if contract["name"] == "prod" else "")
+    if namespace != contract["namespace"]:
+        raise StopPublication("unexpected_publisher_namespace")
+    return contract
 
 
 class NoRedirect(request.HTTPRedirectHandler):
@@ -35,7 +46,11 @@ OPENER = request.build_opener(request.ProxyHandler({}), NoRedirect())
 def call(path, method="GET", token=None, payload=None, content_type=None, modules=False):
     if not path.startswith("/") or ".." in path:
         raise StopPublication("invalid_internal_path")
-    headers = {"Host": "modules.qc.quantum-instrument.com" if modules else "qc.quantum-instrument.com", "Origin": ORIGIN, "X-Forwarded-Proto": "https", "Accept": "application/json"}
+    contract = runtime_contract()
+    origin = contract["moduleOrigin"] if modules else contract["origin"]
+    service = "setup-modules" if modules else "shell"
+    endpoint = "http://" + service + "." + contract["namespace"] + ".svc.cluster.local:8080"
+    headers = {"Host": origin.removeprefix("https://"), "Origin": contract["origin"], "X-Forwarded-Proto": "https", "Accept": "application/json"}
     if token:
         headers["Authorization"] = "Bearer " + token
     if content_type:
@@ -43,7 +58,7 @@ def call(path, method="GET", token=None, payload=None, content_type=None, module
     if isinstance(payload, dict):
         payload = json.dumps(payload, separators=(",", ":")).encode()
         headers["Content-Type"] = "application/json"
-    req = request.Request((MODULES if modules else SHELL) + path, data=payload, headers=headers, method=method)
+    req = request.Request(endpoint + path, data=payload, headers=headers, method=method)
     try:
         with OPENER.open(req, timeout=90) as response:
             raw = response.read(26 * 1024 * 1024)
@@ -108,13 +123,22 @@ def multipart_body(config, archive):
 
 
 def load_bundle(directory):
+    contract = runtime_contract()
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     archive = (directory / "module.zip").read_bytes()
     if not isinstance(manifest, dict) or manifest.get("sourceRepo") != "quantum-platform-kist/quantum-setup-nv-frontend":
         raise StopPublication("unexpected_artifact_repository")
     if not re.fullmatch(r"[0-9a-f]{40}", manifest.get("sourceSha", "")):
         raise StopPublication("invalid_pinned_source_sha")
+    if (manifest.get("deploymentEnvironment") != contract["name"]
+            or manifest.get("sourceBranch") != contract["branch"]):
+        raise StopPublication("artifact_runtime_environment_mismatch")
+    fingerprint = manifest.get("sourceFingerprint", "")
+    if not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+        raise StopPublication("invalid_source_fingerprint")
     version = manifest.get("version", "")
+    if not re.fullmatch(contract["moduleVersionPrefix"] + fingerprint[:12] + r"-[0-9]+-[0-9]+", version):
+        raise StopPublication("artifact_version_environment_mismatch")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,49}", version) or ".." in version or manifest.get("setupId") != SETUP_ID:
         raise StopPublication("invalid_fixed_setup_or_version")
     sha = manifest.get("sha256", "")
@@ -122,9 +146,9 @@ def load_bundle(directory):
         raise StopPublication("archive_checksum_mismatch")
     if type(manifest.get("sizeBytes")) is not int or len(archive) != manifest["sizeBytes"] or len(archive) > 25 * 1024 * 1024:
         raise StopPublication("archive_size_mismatch")
-    expected_url = MODULE_ORIGIN + "/module-assets/" + SETUP_ID + "/module/" + version + "/index.html"
+    expected_url = contract["moduleOrigin"] + "/module-assets/" + SETUP_ID + "/module/" + version + "/index.html"
     if manifest.get("expectedModuleUrl") != expected_url:
-        raise StopPublication("unexpected_production_module_url")
+        raise StopPublication("unexpected_environment_module_url")
     metadata = manifest.get("manifestMetadata")
     if not isinstance(metadata, dict) or set(metadata) - {"moduleNav", "primaryAction"} or len(json.dumps(metadata).encode()) > 16 * 1024:
         raise StopPublication("invalid_ui_manifest_metadata")
@@ -174,8 +198,8 @@ def load_bundle(directory):
     config = {"version": version, "sourceRepo": manifest["sourceRepo"], "sourceSha": manifest["sourceSha"], "archiveSha256": sha,
               "archiveBytes": len(archive), "entrySha256": expected_files["index.html"], "expandedBytes": sum(item["bytes"] for item in files),
               "files": files, "manifestMetadata": metadata, "expectedModuleUrl": expected_url,
-              "expectedDirectApiBaseUrl": MODULE_ORIGIN + "/api/setup-a",
-              "expectedConnectSrc": [MODULE_ORIGIN, "wss://modules.qc.quantum-instrument.com"]}
+              "expectedDirectApiBaseUrl": contract["moduleOrigin"] + "/api/setup-a",
+              "expectedConnectSrc": [contract["moduleOrigin"], contract["moduleOrigin"].replace("https://", "wss://", 1)]}
     return config, archive
 
 
@@ -184,6 +208,7 @@ def main():
     report = {"setupId": SETUP_ID, "status": "started", "uploadAttempted": False, "activationAttempted": False}
     token = None
     try:
+        contract = runtime_contract()
         config, archive = load_bundle(Path(os.environ.get("ARTIFACT_DIRECTORY", "/artifact")))
         VERSION = config["version"]
         report.update({"version": VERSION, "sourceRepo": config["sourceRepo"], "sourceSha": config["sourceSha"], "archiveVerified": True})
@@ -196,7 +221,7 @@ def main():
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,49}", initial_version) or ".." in initial_version:
             raise StopPublication("invalid_current_module_version")
         if not verify_trust(current, config):
-            raise StopPublication("reviewed_production_trust_configuration_not_ready")
+            raise StopPublication("reviewed_environment_trust_configuration_not_ready")
         existing = get_version(token, config)
         if existing is None:
             multipart, content_type = multipart_body(config, archive)
@@ -231,8 +256,8 @@ def main():
                 raise StopPublication("anonymous_module_asset_verification_failed")
             if item["path"] == "index.html":
                 csp = headers.get("Content-Security-Policy", "") if headers else ""
-                if ORIGIN not in csp or MODULE_ORIGIN not in csp or "wss://modules.qc.quantum-instrument.com" not in csp:
-                    raise StopPublication("production_module_csp_verification_failed")
+                if contract["origin"] not in csp or any(origin not in csp for origin in config["expectedConnectSrc"]):
+                    raise StopPublication("environment_module_csp_verification_failed")
         report.update({"anonymousAssets": assets, "status": "published-and-verified"})
     except Exception as exc:
         report.update({"status": "stopped", "safeReason": str(exc) if isinstance(exc, StopPublication) else "unexpected_error_details_suppressed"})

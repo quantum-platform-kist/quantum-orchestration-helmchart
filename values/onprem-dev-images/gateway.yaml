@@ -1,0 +1,9 @@
+{
+  "images": {
+    "gateway": {
+      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-gateway/gateway",
+      "tag": "prod-b0f41f70a3d8-40066479928-1",
+      "digest": "sha256:ac5311ab0971bbc823d51adbd2d37f2caed492c83e5fdff19b852ba757cc2c45"
+    }
+  }
+}

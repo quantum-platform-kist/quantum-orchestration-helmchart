@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
-from common import ORG, HELM, ROOT, BUILD, TARGETS, ApiError, github, identify, token, output, write_json, main_guard
+from common import ORG, HELM, ROOT, BUILD, TARGETS, ApiError, ci_contract, source_fingerprint, github, identify, token, output, write_json, main_guard
 
 
 def deployed_snapshot_matches(values, key, repository, fingerprint):
@@ -18,8 +18,7 @@ def deployed_snapshot_matches(values, key, repository, fingerprint):
 
 
 def main():
-    if os.environ.get("GITHUB_REF") != "refs/heads/prod":
-        raise RuntimeError("Only prod may build or deploy to NKS")
+    contract = ci_contract()
     repository = os.environ["GITHUB_REPOSITORY"]
     caller_sha = os.environ["GITHUB_SHA"]
     if not re.fullmatch(r"[0-9a-f]{40}", caller_sha):
@@ -29,7 +28,7 @@ def main():
     metadata = github("GET", "/repos/" + repository, credential)
     if not metadata.get("private"):
         raise RuntimeError("Private product sources must be built in a private caller run")
-    snapshot = {"repository": repository, "callerSha": caller_sha, "alias": alias,
+    snapshot = {"deploymentEnvironment": contract["name"], "repository": repository, "callerSha": caller_sha, "alias": alias,
                 "runtime": target["runtime"], "sources": {}, "outputs": target["outputs"], "fanout": target["fanout"]}
     # The askpass file contains only an environment variable reference, never a token value.
     helper = Path(tempfile.mkdtemp(prefix="nks-git-")) / "askpass.sh"
@@ -39,7 +38,7 @@ def main():
     try:
         for dependency in target["needs"]:
             full_name = ORG + "/" + TARGETS[dependency]["repo"]
-            sha = caller_sha if dependency == alias else github("GET", "/repos/" + full_name + "/git/ref/heads/prod", credential)["object"]["sha"]
+            sha = caller_sha if dependency == alias else github("GET", "/repos/" + full_name + "/git/ref/heads/" + contract["branch"], credential)["object"]["sha"]
             if not re.fullmatch(r"[0-9a-f]{40}", sha):
                 raise RuntimeError("Invalid dependency commit")
             destination = ROOT / "workspace" / dependency
@@ -50,7 +49,7 @@ def main():
             actual = subprocess.check_output(["git", "-C", str(destination), "rev-parse", "HEAD"], text=True).strip()
             if actual != sha:
                 raise RuntimeError("Checkout commit mismatch")
-            snapshot["sources"][dependency] = {"repository": full_name, "sha": sha}
+            snapshot["sources"][dependency] = {"repository": full_name, "branch": contract["branch"], "sha": sha}
     finally:
         helper.unlink(missing_ok=True)
         helper.parent.rmdir()
@@ -62,11 +61,11 @@ def main():
             tooling_hash.update(path.read_bytes())
     tooling_hash.update((tooling.parent.parent / ".github/workflows/nks-reusable.yml").read_bytes())
     snapshot["toolingFingerprint"] = tooling_hash.hexdigest()
-    snapshot["fingerprint"] = hashlib.sha256(json.dumps({"sources": snapshot["sources"], "tooling": snapshot["toolingFingerprint"]}, sort_keys=True).encode()).hexdigest()
+    snapshot["fingerprint"] = source_fingerprint(snapshot)
     already_deployed = bool(target["outputs"])
     for key in target["outputs"]:
         try:
-            current = github("GET", "/repos/" + HELM + "/contents/values/nks-prod-images/" + key + ".yaml?ref=prod", credential)
+            current = github("GET", "/repos/" + HELM + "/contents/" + contract["valuesDirectory"] + "/" + key + ".yaml?ref=" + contract["branch"], credential)
             values = json.loads(base64.b64decode(current["content"]))
             if not deployed_snapshot_matches(values, key, repository, snapshot["fingerprint"]):
                 already_deployed = False
@@ -80,7 +79,7 @@ def main():
     output("runtime", target["runtime"])
     output("alias", alias)
     output("build_required", "false" if already_deployed else "true")
-    print("Resolved " + str(len(snapshot["sources"])) + " private prod source commits; caller=" + repository)
+    print("Resolved " + str(len(snapshot["sources"])) + " private " + contract["name"] + " source commits; caller=" + repository)
     if already_deployed:
         print("Identical source/tooling snapshot is already deployed; skipping duplicate build and fan-out")
 

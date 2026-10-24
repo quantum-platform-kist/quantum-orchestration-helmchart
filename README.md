@@ -2,11 +2,21 @@
 
 이 저장소는 Quantum Cloud 제품 배포 전용 chart입니다. 공유 `gateway-system/main-gateway`, GatewayClass, cert-manager, MySQL operator, OpenEBS StorageClass는 여기서 만들거나 수정하지 않습니다.
 
-**NKS 공공 클라우드의 새 운영/개발 배포는 바로 아래 NKS 절차를 사용하십시오.** 그 밖의 기존 운영 명령은 FAB 환경의 hostname·StorageClass·Gateway를 전제로 합니다. 기존 prod/dev/ephemeral values와 Argo CD Application, 이미지 digest는 그대로 유지합니다. `dev` 브랜치는 향후 `prod`로 사용할 예정이며 이번 변경에서 rename하거나 기존 Argo `targetRevision`을 변경하지 않습니다.
+**현재 dev는 기존 온프레미스이며, prod는 별도 NKS 클러스터입니다.** 두 클러스터 모두 namespace 이름은 `quantum-cloud-prod`지만 서로 다른 배포 대상입니다. 개발 CI/CD의 적용 순서와 저장소 설정은 [온프레미스 dev CI/CD](docs/dev-cicd.md)를 따르십시오. 아래 NKS 설치 절차의 신규 개발 namespace·Secret·버킷 예시는 현재 온프레미스 dev에 적용하지 않습니다.
 
-## NKS 공공 클라우드 운영/개발 배포
+## 기존 개발 배포의 DNS 반영 (2026-10-24)
 
-이 프로필은 **새 NKS 클러스터/배포에 데이터를 복원하는 경우**에 사용합니다. 기존 PVC의 StorageClass를 제자리에서 변경하지 않습니다. StorageClass·PV·Node·Gateway 자체는 chart가 생성하지 않으며 `volumeName`이나 PV selector로 기존 볼륨을 지정하지 않습니다.
+개발 shell은 `qc-dev.quantum-instrument.com`, modules는 `modules.qc-dev.quantum-instrument.com`, issuer는 `https://qc-dev.quantum-instrument.com`입니다. 두 A 레코드의 올바른 주소는 **`161.122.93.243`**입니다. 2026-10-24 조사 당시 두 레코드의 `175.45.220.187`은 NKS 진입점으로 잘못 설정된 상태였습니다. 온프레미스의 HAProxy TCP 경로는 `10.42.2.2:443` Cilium Gateway로 연결됩니다.
+
+실측 대상은 `kubernetes-admin@prod-k8s`의 `qc-prod-app`과 `qc-prod-stateful`이며 둘 다 Helm `dev`를 추적합니다. 기존 namespace `quantum-cloud-prod`, 앱 Secret `qc-prod-app-secrets`, DB root Secret `qc-mysql-root`, 노드 `prod-k8s-02/03`, `fab-lvm-retain` PVC와 내부 MinIO `setup-modules` 버킷을 유지합니다. `argocd/qc-prod-app.yaml`은 기존 app values 뒤에 DNS override `values/dev-dns.yaml`과 `values/onprem-dev-images/` 8개를 추가합니다. 같은 Application의 `valuesObject.global.gateway`에 `shellSectionName: qc-dev-shell-https`, `moduleSectionName: qc-dev-modules-https`를 지정하여 dev 전용 listener에 연결합니다. 기존 HTTPRoute 이름·backend·namespace와 Gateway 부모 참조는 유지합니다. stateful 데이터 구조는 변경하지 않습니다.
+
+2026-10-24 root는 공유 `gateway-system/main-gateway`의 기존 listener 7개와 `qc-tls`를 보존하고 `qc-dev-shell-https`/`qc-dev-modules-https`를 추가했습니다. 실제 소유 경로는 별도 `argocd/gateway` Application의 `spec.source.kustomize.patches[1].patch` 내 `/spec/listeners` 전체 replace입니다. Gateway 직접 patch나 공유 repo 파일만 수정하면 Application selfHeal로 되돌아갑니다. 별도 `qc-dev-tls` Certificate의 DNS01 발급(`Ready=True`)과 HAProxy 백업·검증·reload도 root가 완료했습니다. `161.122.93.243`으로 resolve한 dev TLS 검증은 성공했으며 아직 dev Route가 없어 HTTP 404였습니다. [운영 예시](infra/public-edge/examples/REVIEW-NOTES.txt)는 이 증거를 설명하는 자료이며 재적용하지 않습니다. 이미 등록된 모듈 manifest의 origin도 확인해야 합니다. publisher는 dev 이미지·셋업·기존 Secret 확인 전까지 비활성입니다. NKS prod의 `argocd/qc-nks-prod-app.yaml`, pause parameters, `values/nks-prod-images/`와 `infra/nks-public-edge`는 그대로 유지합니다.
+
+이번 executor 변경은 로컬 구현과 정적 검증입니다. 위 라이브 작업은 root의 별도 적용 결과입니다. 남은 dev DNS 정정/전파 확인, 원격 브랜치 반영·CI 활성화, `qc-prod-app` sync를 통한 dev Route 연결과 앱 검증은 root가 진행합니다. 보드 실행 워커 기동도 별도 담당입니다.
+
+## NKS 공공 클라우드 신규 설치 참고
+
+이 프로필은 **새 NKS 클러스터/배포에 데이터를 복원하는 경우**에 사용합니다. 이 절의 NKS 개발 프로필은 기존 참고용으로 보존하며 현재 온프레미스 dev CI/CD가 선택하는 프로필이 아닙니다. 기존 PVC의 StorageClass를 제자리에서 변경하지 않습니다. StorageClass·PV·Node·Gateway 자체는 chart가 생성하지 않으며 `volumeName`이나 PV selector로 기존 볼륨을 지정하지 않습니다.
 
 ### 사전 준비와 저장·배치 설정
 
@@ -24,7 +34,7 @@ MinIO 재활성화 시 내부 저장소를 쓰려면 앱의 `apps.setupRegistry.
 
 ### 현장 site-values 필수 입력
 
-NKS app override는 `dnsResolver`, `trustedProxies`, host, Gateway 참조, issuer의 기존 FAB 값을 지우고 `httpRoutes.enabled: false`로 시작합니다. **DNS/host 미입력은 schema 검사에서 실패합니다.** 아래 파일의 `<...>`를 MSP가 확인한 실제 값으로 모두 교체해 별도로 보관하십시오. DNS는 Pod에서 사용할 실제 cluster DNS IP, proxy CIDR은 Auth가 신뢰할 실제 프록시 대역이며 기존 `10.96.0.10`/`10.244.2.0/24`를 그대로 복사하지 않습니다. `issuer`는 shell의 실제 HTTPS origin입니다. 외부 Gateway/listener·TLS·DNS 준비가 끝난 경우에만 아래처럼 HTTPRoute를 켭니다.
+NKS 운영·개발 app override는 미확정인 `global.dnsResolver`, `global.trustedProxies`, `global.gateway` 참조를 빈값으로 두고 `httpRoutes.enabled: false`로 시작합니다. `values/nks-prod-app.yaml`은 host/issuer도 비우지만, `values/nks-dev-app.yaml`은 위에서 확정한 두 개발 host와 issuer를 갖습니다. **DNS/host 필수 항목이 비어 있으면 schema 검사에서 실패합니다.** 아래 파일의 `<...>`를 MSP가 확인한 실제 값으로 모두 교체해 별도로 보관하십시오. DNS는 Pod에서 사용할 실제 cluster DNS IP, proxy CIDR은 Auth가 신뢰할 실제 프록시 대역이며 기존 `10.96.0.10`/`10.244.2.0/24`를 그대로 복사하지 않습니다. `issuer`는 shell의 실제 HTTPS origin입니다. 외부 Gateway/listener·TLS·DNS 준비가 끝난 경우에만 아래처럼 HTTPRoute를 켭니다.
 
 운영 `site-values-prod.yaml`:
 
@@ -46,7 +56,7 @@ httpRoutes:
   enabled: true
 ```
 
-개발 `site-values-dev.yaml`:
+새 NKS 개발 설치용 `site-values-dev.yaml`:
 
 ```yaml
 global:
@@ -54,9 +64,9 @@ global:
   dnsResolver: "<실제_CLUSTER_DNS_IP>"
   trustedProxies: "<실제_PROXY_CIDR>"
   hosts:
-    shell: "<개발_SHELL_DNS_HOST>"
-    modules: "<개발_MODULES_DNS_HOST>"
-  issuer: "https://<개발_SHELL_DNS_HOST>"
+    shell: "qc-dev.quantum-instrument.com"
+    modules: "modules.qc-dev.quantum-instrument.com"
+  issuer: "https://qc-dev.quantum-instrument.com"
   gateway:
     name: "<기존_GATEWAY_NAME>"
     namespace: "<기존_GATEWAY_NAMESPACE>"
@@ -96,7 +106,7 @@ kubectl annotate namespace "$QC_NKS_NAMESPACE" \
 
 ### 정확한 values 순서와 설치
 
-아래는 현장 값을 채우고 Secret·버킷을 준비한 뒤 실행할 명령입니다. `prod-stateful.yaml`과 `prod-app-images.yaml`을 포함해 기존 고정 이미지를 사용합니다. 표의 왼쪽부터 오른쪽 순서를 지키며 site-values는 항상 마지막에 둡니다. site-values에는 위 환경 설정만 넣고 replica나 이미지는 변경하지 않습니다.
+아래는 현장 값을 채우고 Secret·버킷을 준비한 뒤 실행할 명령입니다. `prod-stateful.yaml`과 `prod-app-images.yaml`을 포함해 기존 고정 이미지를 사용합니다. 표의 왼쪽부터 오른쪽 순서를 지키며 site-values는 환경 프로필 뒤에 둡니다. 개발 DNS-only override를 함께 쓰면 `values/dev-dns.yaml`을 site-values보다 뒤인 마지막에 추가합니다. site-values에는 위 환경 설정만 넣고 replica나 이미지는 변경하지 않습니다.
 
 | 대상 | values 순서 | 앱 replica |
 |---|---|---|
@@ -162,7 +172,7 @@ endpoint는 HTTP(S) 호스트와 선택적 포트·루트 `/`만 허용합니다
 - `values/prod-app.yaml`: restore/cutover 전 기본값입니다. 모든 앱 replica는 `0`입니다.
 - `values/prod-app-images.yaml`: GHCR 운영 이미지 repository/tag/digest와 `global.imagePullSecrets: [ghcr]`를 담는 override입니다.
 - `values/prod-app-online.yaml`: restore 검증 뒤 앱을 `1` replica로 올리는 override입니다. `job-orchestrator`와 `setup-a-be`는 `Recreate`입니다.
-- `manifests/shared-gateway-qc-listeners.reviewed.yaml`: 공유 infra repo에 반영할 listener/cert 참고 문서입니다. 이 chart의 소유물이 아닙니다.
+- `manifests/shared-gateway-qc-listeners.reviewed.yaml`: 기존 `qc.*` listener/cert 참고 문서입니다. 현재 온프레미스 Gateway의 실제 override 소유 경로와 dev 추가 내역은 [운영 예시](infra/public-edge/examples/REVIEW-NOTES.txt)를 따릅니다. 이 chart는 Gateway를 소유하지 않습니다.
 
 ## 필수 Secret 계약
 
@@ -274,7 +284,9 @@ valueFiles:
 
 ## 기존 FAB 운영 배포 순서
 
-1. 공유 infra repo에서 `qc-shell-https`, `qc-modules-https` listener와 `qc-tls` SAN을 반영합니다. 이 작업은 `quantum-cloud-helmchart` owner 경로에서만 수행합니다.
+다음은 기존 `qc.*` 초기 설치 참고 절차입니다. 현재 온프레미스 dev의 데이터 초기화나 TLS 재적용 절차가 아니며, dev는 [활성화 순서](docs/dev-cicd.md#실제-활성화-순서)를 따릅니다.
+
+1. 공유 Gateway owner가 `qc-shell-https`, `qc-modules-https` listener와 `qc-tls`를 관리합니다. 현재 온프레미스에서는 `argocd/gateway` Application의 `spec.source.kustomize.patches[1].patch`가 `/spec/listeners` 전체를 override하므로 공유 repo 파일만 변경해서는 반영되지 않습니다.
 2. 운영 Secret을 생성합니다. 값은 화면과 로그에 출력하지 않습니다.
 3. stateful chart를 수동 sync합니다.
 4. MySQL 8 dump를 MySQL 9.6 staging/QC DB에 restore하고 Flyway validate/migration, fresh row count 비교를 수행합니다.

@@ -2,7 +2,7 @@ import base64
 import json
 import re
 import time
-from common import HELM, BUILD, ApiError, github, read_snapshot, token, main_guard
+from common import HELM, BUILD, ApiError, github, read_snapshot, validate_release, token, main_guard
 
 
 def values(image, fingerprint=None):
@@ -21,33 +21,30 @@ def values(image, fingerprint=None):
 def main():
     snapshot = read_snapshot()
     release = json.loads((BUILD / "release.json").read_text())
+    contract = validate_release(snapshot, release, require_digest=True)
     if not release["images"]:
         return
     credential = token("NKS_GITOPS_TOKEN")
-    if release["sourceRepository"] != snapshot["repository"] or release["sourceSha"] != snapshot["callerSha"] or release.get("sourceFingerprint") != snapshot.get("fingerprint"):
-        raise RuntimeError("Release provenance differs from checked source")
     for image in release["images"]:
-        if image["key"] not in snapshot["outputs"] or not image["repository"].startswith("ghcr.io/" + snapshot["repository"].lower() + "/"):
-            raise RuntimeError("Component ownership mismatch")
-        path = "/repos/" + HELM + "/contents/values/nks-prod-images/" + image["key"] + ".yaml"
+        path = "/repos/" + HELM + "/contents/" + contract["valuesDirectory"] + "/" + image["key"] + ".yaml"
         content = json.dumps(values(image, release.get("sourceFingerprint")), indent=2) + "\n"  # JSON is valid Helm YAML.
         for attempt in range(5):
             sha = None
             try:
-                current = github("GET", path + "?ref=prod", credential)
+                current = github("GET", path + "?ref=" + contract["branch"], credential)
                 if base64.b64decode(current["content"]).decode() == content:
                     break
                 sha = current["sha"]
             except ApiError as error:
                 if error.status != 404:
                     raise
-            payload = {"branch": "prod", "message": "deploy(nks): " + image["key"] + " " + snapshot["callerSha"][:12],
+            payload = {"branch": contract["branch"], "message": "deploy(" + contract["name"] + "): " + image["key"] + " " + snapshot["callerSha"][:12],
                        "content": base64.b64encode(content.encode()).decode()}
             if sha:
                 payload["sha"] = sha
             try:
                 github("PUT", path, credential, payload)
-                print("Updated NKS prod digest: " + image["key"])
+                print("Updated " + contract["name"] + " digest: " + image["key"])
                 break
             except ApiError as error:
                 if error.status not in (409, 422) or attempt == 4:

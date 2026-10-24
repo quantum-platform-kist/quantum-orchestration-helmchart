@@ -6,13 +6,10 @@ import re
 import shutil
 import subprocess
 import zipfile
-from common import ROOT, BUILD, read_snapshot, write_json, main_guard
+from common import ROOT, BUILD, SUFFIXES, read_snapshot, validate_snapshot, validate_release, write_json, main_guard
 
 JAVA_ALIASES = {"auth": "auth-computer", "gateway": "gateway", "setupRegistry": "setup-registry",
                 "jobOrchestrator": "job-orchestrator", "setupABe": "setup-a-be"}
-SUFFIXES = {"auth": "auth", "gateway": "gateway", "setupRegistry": "setup-registry",
-            "jobOrchestrator": "job-orchestrator", "setupABe": "setup-a-be",
-            "shell": "shell", "setupModules": "setup-modules", "modulePublisher": "module-publisher"}
 
 
 def pin_base(image):
@@ -24,6 +21,7 @@ def pin_base(image):
 
 
 def module_bundle(context, snapshot, version):
+    contract = validate_snapshot(snapshot)
     source = ROOT / "workspace/setup-a"
     dist = source / "dist"
     paths = [path for path in dist.rglob("*") if path.is_file()
@@ -43,24 +41,28 @@ def module_bundle(context, snapshot, version):
             files.append({"path": relative, "sha256": hashlib.sha256(content).hexdigest(), "bytes": len(content)})
     raw = archive.read_bytes()
     manifest = {"sourceRepo": snapshot["repository"], "sourceSha": snapshot["callerSha"],
+                "deploymentEnvironment": contract["name"], "sourceBranch": contract["branch"],
+                "sourceFingerprint": snapshot["fingerprint"],
                 "setupId": "stp_nv_a1", "version": version,
                 "sha256": hashlib.sha256(raw).hexdigest(), "sizeBytes": len(raw), "files": files,
                 "manifestMetadata": json.loads((source / "deployment/module-manifest.json").read_text()),
-                "expectedModuleUrl": "https://modules.qc.quantum-instrument.com/module-assets/stp_nv_a1/module/" + version + "/index.html"}
+                "expectedModuleUrl": contract["moduleOrigin"] + "/module-assets/stp_nv_a1/module/" + version + "/index.html"}
     write_json(artifact / "manifest.json", manifest)
     shutil.copy2(Path(__file__).parent / "module_publisher.py", context / "module_publisher.py")
+    shutil.copy2(Path(__file__).parent / "environments.py", context / "environments.py")
 
 
 def main():
     snapshot = read_snapshot()
+    contract = validate_snapshot(snapshot)
     run_id, attempt = os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"]
     if not run_id.isdigit() or not attempt.isdigit():
         raise RuntimeError("Invalid workflow run identity")
-    tag = "prod-" + snapshot["callerSha"][:12] + "-" + run_id + "-" + attempt
-    version = "nks-" + snapshot["fingerprint"][:12] + "-" + run_id + "-" + attempt
+    tag = contract["name"] + "-" + snapshot["callerSha"][:12] + "-" + run_id + "-" + attempt
+    version = contract["moduleVersionPrefix"] + snapshot["fingerprint"][:12] + "-" + run_id + "-" + attempt
     if len(version) > 50:
         raise RuntimeError("Module version too long")
-    release = {"sourceRepository": snapshot["repository"], "sourceSha": snapshot["callerSha"],
+    release = {"deploymentEnvironment": contract["name"], "sourceRepository": snapshot["repository"], "sourceSha": snapshot["callerSha"],
                "sourceFingerprint": snapshot["fingerprint"], "images": []}
     for key in snapshot["outputs"]:
         context = BUILD / "contexts" / key
@@ -90,7 +92,7 @@ def main():
             base = pin_base("container-registry.oracle.com/mysql/community-operator:9.6.0-2.2.7")
             module_bundle(context, snapshot, version)
             dockerfile = ('ARG BASE_IMAGE\nFROM ${BASE_IMAGE}\nCOPY artifact/ /artifact/\n'
-                          'COPY module_publisher.py /publisher/module_publisher.py\n'
+                          'COPY module_publisher.py environments.py /publisher/\n'
                           'ENV HOME=/tmp MYSQLSH_USER_CONFIG_HOME=/tmp\n'
                           'ENTRYPOINT ["mysqlsh","--py","--file","/publisher/module_publisher.py"]\n')
         else:
@@ -104,6 +106,7 @@ def main():
                         "--tag", image, str(context)], check=True)
         release["images"].append({"key": key, "repository": repository, "tag": tag,
                                   "baseImage": base, **({"moduleVersion": version} if key == "modulePublisher" else {})})
+    validate_release(snapshot, release)
     write_json(BUILD / "release.json", release)
     print("Prepared " + str(len(release["images"])) + " images; no registry push performed by this step")
 

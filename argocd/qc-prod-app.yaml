@@ -14,9 +14,31 @@ spec:
         - ../../values/prod-app.yaml
         - ../../values/prod-app-images.yaml
         - ../../values/prod-app-online.yaml
+        - ../../values/dev-dns.yaml
+        - ../../values/onprem-dev-images/auth.yaml
+        - ../../values/onprem-dev-images/gateway.yaml
+        - ../../values/onprem-dev-images/setupRegistry.yaml
+        - ../../values/onprem-dev-images/jobOrchestrator.yaml
+        - ../../values/onprem-dev-images/setupABe.yaml
+        - ../../values/onprem-dev-images/shell.yaml
+        - ../../values/onprem-dev-images/setupModules.yaml
+        - ../../values/onprem-dev-images/modulePublisher.yaml
+      valuesObject:
+        global:
+          deploymentEnvironment: dev
+          gateway:
+            shellSectionName: qc-dev-shell-https
+            moduleSectionName: qc-dev-modules-https
+      parameters:
+        # 신규 dev 이미지와 기존 셋업/Secret을 확인한 뒤 별도 검토로 해제합니다.
+        - name: modulePublish.enabled
+          value: "false"
   destination:
     server: https://kubernetes.default.svc
     namespace: quantum-cloud-prod
   syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
