@@ -1,6 +1,6 @@
 # 온프레미스 dev CI/CD
 
-2026-10-24 기준, **dev는 기존 온프레미스, prod는 별도 NKS**입니다. `nks-reusable.yml`, `ci/nks`, `dev-nks.yml`과 `NKS_*` Secret/variable 이름은 기존 호출 계약의 호환성을 위해 유지합니다. 이름에 NKS가 있어도 `deployment_environment: dev`는 아래 온프레미스 계약을 선택합니다.
+2026-10-25 기준, **dev는 기존 온프레미스, prod는 별도 NKS**입니다. `nks-reusable.yml`, `ci/nks`, `dev-nks.yml`과 `NKS_*` Secret/variable 이름은 기존 호출 계약의 호환성을 위해 유지합니다. 이름에 NKS가 있어도 `deployment_environment: dev`는 아래 온프레미스 계약을 선택합니다.
 
 ## 배포 대상과 보존할 자원
 
@@ -17,13 +17,13 @@
 | 모듈 저장소 | 내부 `qc-minio`, bucket `setup-modules` | 기존 NKS Object Storage |
 | 공개 진입점 | `161.122.93.243` → HAProxy TCP → `10.42.2.2:443` | 기존 NKS ALB |
 
-온프레미스 실측 context는 `kubernetes-admin@prod-k8s`입니다. `qc-prod-app`과 `qc-prod-stateful`은 `dev`를 추적하며, 2026-10-24 23:28 KST 독립 확인에서 `e77d54d` 기준 Synced/Healthy였습니다. 기존 7개 앱 Deployment의 desired/ready/available/updated가 모두 1이고, 실제 Pod `imageID` 7개가 dev CI 산출물의 SHA256 digest와 일치했습니다(restartCount=0). 기존 Job 162건(done 76/canceled 84/failed 2)도 보존됐습니다. 이 구성은 새 클러스터 설치가 아닙니다. 기존 DB/Job/측정 데이터, Secret 값, PVC, 노드 `prod-k8s-02/03`, StorageClass `fab-lvm-retain`, DNS resolver `10.96.0.10`, trusted proxy `10.244.2.0/24`를 유지합니다. 새 namespace·NAS·S3 bucket을 준비할 필요가 없습니다.
+온프레미스 실측 context는 `kubernetes-admin@prod-k8s`입니다. `qc-prod-app`과 `qc-prod-stateful`은 `dev`를 추적하며, 2026-10-25 최종 독립 확인에서 `f97b512` 기준 Synced/Healthy였습니다. 기존 7개 앱 Deployment의 desired/ready/available/updated가 모두 1이고, 실제 Pod `imageID` 7개가 dev CI 산출물의 SHA256 digest와 일치했습니다(restartCount=0). 기존 Job 162건(done 76/canceled 84/failed 2)도 보존됐습니다. 이 구성은 새 클러스터 설치가 아닙니다. 기존 DB/Job/측정 데이터, Secret 값, PVC, 노드 `prod-k8s-02/03`, StorageClass `fab-lvm-retain`, DNS resolver `10.96.0.10`, trusted proxy `10.244.2.0/24`를 유지합니다. 새 namespace·NAS·S3 bucket을 준비할 필요가 없습니다.
 
-`qc-prod-app.yaml`의 values 순서는 기존 `prod-app` → `prod-app-images` → `prod-app-online` → `dev-dns` → `onprem-dev-images` 8종입니다. `valuesObject.global.gateway`의 `shellSectionName: qc-dev-shell-https`, `moduleSectionName: qc-dev-modules-https`로 HTTPRoute가 dev listener에 연결됐습니다. 기존 Route 이름·backend·namespace와 `gateway-system/main-gateway` 부모는 유지합니다. `valuesObject.global.deploymentEnvironment=dev`이며 앱 자동 동기화는 `selfHeal=true`, `prune=false`입니다. 이번 변경은 온프레미스 Application의 `modulePublish.enabled=false` 상위 parameter를 제거하여 환경별 values가 게시 여부를 결정하도록 합니다. dev values에는 환경 프로비넌스 확인이 끝난 신규 publisher image/version이 들어 있습니다. 실제 Application 적용, PostSync upload/activate와 E2E 검증은 백엔드 bridge 배포 준비 후 root가 수행합니다. `qc-prod-stateful.yaml`의 현재 구조와 수동 동기화는 유지합니다. NKS prod app의 Registry 정지/publisher 정지 parameters, 이미지 digest와 edge 소유권도 보존합니다.
+`qc-prod-app.yaml`의 values 순서는 기존 `prod-app` → `prod-app-images` → `prod-app-online` → `dev-dns` → `onprem-dev-images` 8종입니다. `valuesObject.global.gateway`의 `shellSectionName: qc-dev-shell-https`, `moduleSectionName: qc-dev-modules-https`로 HTTPRoute가 dev listener에 연결됐습니다. 기존 Route 이름·backend·namespace와 `gateway-system/main-gateway` 부모는 유지합니다. `valuesObject.global.deploymentEnvironment=dev`이며 앱 자동 동기화는 `selfHeal=true`, `prune=false`입니다. 이번 변경은 온프레미스 Application의 `modulePublish.enabled=false` 상위 parameter를 제거하여 환경별 values가 게시 여부를 결정하도록 합니다. dev values에는 환경 프로비넌스 확인이 끝난 신규 publisher image/version이 들어 있습니다. 실제 Application에 적용했고 PostSync upload/activate와 브라우저 5기능 E2E 검증도 완료했습니다. `qc-prod-stateful.yaml`의 현재 구조와 수동 동기화는 유지합니다. NKS prod app의 Registry 정지/publisher 정지 parameters, 이미지 digest와 edge 소유권도 보존합니다.
 
 ## 11개 앱 저장소의 브랜치와 caller
 
-각 저장소의 clean clone은 `.codex-runs/dev-cicd-20261024/repos/<alias>`에 있으며 `origin/prod`에서 시작한 `codex/dev-cicd`입니다. root가 11개 저장소의 caller와 필수 prod 수정을 `dev`에 반영했고, Helm `dev` 반영도 완료했습니다. 원본 개발 작업트리는 보존합니다. 이번 Job bridge 수정은 architect 계획에 따라 원본의 필요한 delegated API 부분만 job-orchestrator clean clone에 이식하며 별도 dev 반영 대상입니다.
+각 저장소의 clean clone은 `.codex-runs/dev-cicd-20261024/repos/<alias>`에 있으며 `origin/prod`에서 시작한 `codex/dev-cicd`입니다. root가 11개 저장소의 caller와 필수 prod 수정을 `dev`에 반영했고, Helm `dev` 반영도 완료했습니다. 원본 개발 작업트리는 보존합니다. Job `06cefe0`과 Registry `2ef43f7`에는 필요한 delegated API 및 내부 메타 조회만 선별 이식하여 dev 반영·CI·실배포를 완료했습니다.
 
 | alias | `quantum-platform-kist/` 저장소 | caller packages 권한 |
 |---|---|---|
@@ -39,7 +39,7 @@
 | shell | `quantum-orchestration-shell` | `write` |
 | ui | `quantum-orchestration-ui` | `read` |
 
-모두 `.github/workflows/dev-nks.yml`을 추가했습니다. `push: dev`와 수동 실행만 받고 `github.ref == 'refs/heads/dev' && vars.NKS_DEV_CI_ENABLED == 'true'`일 때만 `nks-reusable.yml@dev`에 `deployment_environment: dev`를 전달합니다. `contents: read`, 기존 packages 권한, `nks-dev-${{ github.repository }}` concurrency, `cancel-in-progress: false`를 사용합니다. `prod-nks.yml`은 보존했습니다. 초기 신규 dev CI 11개는 모두 성공했습니다. 병행 실행되는 legacy CI에서는 auth `dcb62f1`, setup-registry `d0e8e40`을 dev에 후속 반영하여 같은 core source의 격리 MavenLocal 의존성을 사용하고 QC dev에서 중복 package/FAB 배포를 차단했습니다. 이 두 수정의 후속 CI/fanout은 검증 중입니다. 저장된 후속 관찰에서는 registry Build Test가 성공하고 FAB 배포 단계가 skip됐으며, auth Publish Auth Core도 skip됐습니다.
+모두 `.github/workflows/dev-nks.yml`을 추가했습니다. `push: dev`와 수동 실행만 받고 `github.ref == 'refs/heads/dev' && vars.NKS_DEV_CI_ENABLED == 'true'`일 때만 `nks-reusable.yml@dev`에 `deployment_environment: dev`를 전달합니다. `contents: read`, 기존 packages 권한, `nks-dev-${{ github.repository }}` concurrency, `cancel-in-progress: false`를 사용합니다. `prod-nks.yml`은 보존했습니다. 초기 신규 dev CI 11개는 모두 성공했습니다. 병행 실행되는 legacy CI에서는 auth `dcb62f1`, setup-registry `d0e8e40`을 dev에 후속 반영하여 같은 core source의 격리 MavenLocal 의존성을 사용하고 QC dev에서 중복 package/FAB 배포를 차단했습니다. 이 두 수정 및 backend 보완의 후속 CI/fanout도 모두 성공했고 실행·대기 작업은 없습니다. auth/Registry Build Test 성공, Registry Jib·FAB 배포 및 auth Publish Auth Core skip을 실제 실행 step에서 확인했습니다. 중복 fanout은 source fingerprint 비교로 생략합니다.
 
 core의 원격 `dev` 생성도 완료됐습니다(초기 반영 `5a449ed`). 다른 10개 저장소와 Helm도 필요한 prod 수정과 dev caller/DNS 설정을 포함해 `dev`에 반영됐습니다. 원격 `prod` 12개 HEAD는 root의 독립 비교에서 이전 값과 같았습니다. 이후 작업도 원격 `prod`를 변경하지 않습니다.
 
@@ -68,18 +68,22 @@ core의 원격 `dev` 생성도 완료됐습니다(초기 반영 `5a449ed`). 다�
 
 [운영 예시](../infra/public-edge/examples/REVIEW-NOTES.txt)는 root가 적용한 Application override patch와 별도 Certificate를 기준으로 합니다. 이미 적용한 예시를 재적용하지 않습니다. 향후 변경 시 최신 Application의 `resourceVersion`, patch target와 patch 원문을 다시 조회하고 root 검토 후 진행합니다. NKS `infra/nks-public-edge` 소유권은 변경하지 않습니다.
 
-사용자 명시 승인 후 root가 활성 manifest/version id `55`의 두 행에서 URL·direct API·connect-src 도메인을 dev origin으로 전환했습니다. 조건 guard=1 및 update rows=1/1을 확인하고 COMMIT했으며 버전·해시·trust·실험 데이터는 보존했습니다(`onprem-module-dev-url-applied.txt`). 독립 GET에서 manifest/asset 200과 dev CSP를 확인했습니다(`module-dev-url-independent-check.json`). setup scoped token 교환 및 setupBE permissions/NV 목록도 200입니다. 다만 module jobs 목록은 404이며, 배포된 job-orchestrator에 delegated `/internal/setups/{id}/jobs` API가 없는 것을 확인했습니다. delegated submit에 필요한 Registry 내부 setup 메타 GET도 미배포여서 두 서버의 계약을 함께 복구해야 합니다. 이 bridge의 clean clone 수정·배포와 새 dev 모듈 upload/activate, iframe 기능 회귀는 아래 후속 작업입니다. platform token을 iframe에 넘기는 우회는 사용하지 않습니다.
+사용자 명시 승인 후 root가 활성 manifest/version id `55`의 두 행에서 URL·direct API·connect-src 도메인을 dev origin으로 전환했습니다. 조건 guard=1 및 update rows=1/1을 확인하고 COMMIT했으며 버전·해시·trust·실험 데이터는 보존했습니다(`onprem-module-dev-url-applied.txt`). 독립 GET에서 manifest/asset 200과 dev CSP를 확인했습니다(`module-dev-url-independent-check.json`). setup scoped token 교환 및 setupBE permissions/NV 목록도 200입니다. 기존 module jobs 404는 Job delegated 4경로와 Registry 내부 setup GET의 배포로 해결했습니다. 실제 Pod mappings와 scoped token을 사용한 목록·상세 GET 200을 독립 확인했습니다. platform token을 iframe에 넘기는 우회는 사용하지 않습니다.
 
-## 남은 활성화와 검증 순서
+## 실제 배포 검증 결과
 
-11개 dev branch/caller/enable과 초기 CI, DNS/TLS/HAProxy/Route, 앱 7개 digest 검증, DB 두 행의 도메인 전환은 완료된 작업입니다. 재실행하거나 DB bootstrap/restore·계정 초기화를 하지 않습니다. 작업 증거는 `.codex-runs/dev-cicd-20261024/`의 `published-commits.json`, `actions-live-monitor.json`, `post-rollout-independent-verification.json`, `dev-job-history-check.json`, `onprem-module-dev-url-applied.txt`에 있습니다. legacy CI 후속 확인은 `legacy-ci-published.json`과 `actions-followup-monitor.json`을 사용합니다.
+2026-10-25 KST에 CI → GitOps digest 갱신 → Argo 앱 배포 → 모듈 게시 → 브라우저 검증을 완료했습니다. 기존 DB bootstrap/restore나 계정 초기화를 재실행하지 않습니다.
 
-1. root가 Job delegated API 4개와 Registry 내부 setup 메타 GET의 최소 이식 결과를 검토·dev 반영합니다. Registry의 기존 read audience/principal 및 Job의 기존 event ingest 계약을 유지합니다. 원본 dirty 작업트리는 보존하고 `prod`는 변경하지 않습니다. Registry CI/Ready 이후 Job CI/Ready 순서로 검증하며 dependency fanout과 같은 서비스의 중복 build/publish를 피합니다.
-2. root가 GET-only 라이브 확인으로 Registry 내부 메타 조회, Job mapping 4경로 등록, 같은 scoped exchange를 거친 module jobs 목록/기존 detail 200 및 기존 permissions/NV 200을 확인합니다. 실 submit/cancel이나 Kafka 발행으로 검증하지 않습니다. 기존 Job 162건과 측정 데이터를 보존합니다.
-3. 새 dev `modulePublisher` image/version 및 bundle/runtime 환경 프로비넌스는 확인됐습니다. backend 준비 후 root가 **온프레미스 `argocd/qc-prod-app.yaml` 하나만** 적용하여 상위 publisher 정지 parameter가 제거됐는지 확인합니다. 환경별 values가 게시 여부를 결정하며 dev `PostSync` Job `qc-nv-module-publish`의 upload/activate 결과는 별도로 확인해야 합니다. 이 문서의 로컬 변경만으로 게시 완료를 의미하지 않습니다. NKS prod 정지 parameter와 stateful 데이터 구조는 유지합니다.
-4. root가 브라우저 로그인, 별도 origin iframe, setup scoped token, 모듈 직접 API, 기존 Job/측정 목록과 인터랙티브 5기능 회귀를 검증합니다. auth `dcb62f1`/registry `d0e8e40`의 후속 CI/fanout 결과도 함께 확인합니다.
+- 초기 dev CI 11개와 후속 auth/Registry/Job/소비자 CI 모두 성공했습니다. Registry run `40104358812`, Job run `40104369525`, setup-a-be run `40103842682`의 이미지가 Helm dev에 반영됐습니다. 원격 prod 12개 HEAD와 원본 dirty 작업트리 1,038개 파일은 보존했습니다.
+- 최종 7개 앱의 Deployment/Pod imageID가 Helm dev digest와 일치하고 모두 Ready입니다. `qc-prod-app`과 `qc-prod-stateful`은 `f97b512` 기준 Synced/Healthy이며 publisher 정지 parameter는 제거됐습니다. stateful/PVC 구조는 유지합니다.
+- PostSync `qc-nv-module-publish`가 `onprem-dev-db728a25e35c-40101384745-1`을 upload/activate(각 200)하고 자산 4개의 해시와 CSP를 검증했습니다. 성공 후 Job 삭제는 기존 HookSucceeded 정책에 따른 정상 동작입니다.
+- 공개 dev DNS/TLS, 기본·추가 계정 로그인과 `/auth/me`, setup scoped exchange, 모듈 권한·NV·Job 목록/상세를 확인했습니다. Job 162건(DONE 76/CANCELED 84/FAILED 2), NV 6개가 조회됩니다.
+- 실제 브라우저에서 ODMR 축(2700–3200), 추가 실험 창의 고정 NV, Confocal 밝기, NV 강조 표시, 좌표 선택→NV 등록 창의 5기능을 모두 통과했습니다. 실험 제출·취소·NV 저장은 실행하지 않았습니다.
 
-보드 transient worker는 23:29 KST 두 번의 독립 관찰에서 active/running, Kafka group STABLE/member 1, start lag 0이었습니다. 기존 topic offset도 같고 새 실험은 발행하지 않았습니다(`board-running-verification.json`). 재부팅 자동기동이나 실제 보드 실험 E2E까지 완료했다는 뜻은 아닙니다.
+증거 디렉터리 `.codex-runs/dev-cicd-20261024/`의 `actions-followup-monitor.json`, `backend-rollout-independent.json`, `final-rollout-verification.json`, `module-publisher-live-result.json`, `dev-module-api-verification.json`, `final-public-entry-check.json`, `e2e/feature-summary.txt`에 결과를 저장했습니다. 승인된 DB 두 행 변경 증거는 `onprem-module-dev-url-applied.txt`입니다.
+
+보드 `qc-orchestration-worker.service`는 active/running, Kafka group STABLE/member 1, start lag 0으로 확인했습니다. 기존 topic offset은 같고 새 실험 명령을 발행하지 않았습니다. transient unit이므로 재부팅 자동기동은 설정하지 않았으며 실제 장비 측정 E2E까지 수행한 것은 아닙니다.
+
 
 ## 검증과 API 호출 예시
 
@@ -91,9 +95,9 @@ python3 -m unittest discover -s ci/nks/tests -v
 git diff --check
 ```
 
-정적 테스트는 환경 혼합 거부, dev writeback/fanout, 이미지·Argo values·namespace 계약, 기존 prod 렌더 보존을 확인합니다. 온프레미스 렌더 비교는 origin·image와 의도된 두 sectionName 변경만 허용하고 dev Route가 dev listener를 참조하는지 확인합니다. publisher off/on을 모두 검증하며, on에서 추가되는 `qc-nv-module-publish` Job 한 개만 이름·PostSync·dev 환경·namespace·기존 Secret·허용 publisher·불변 digest를 명시 검증한 뒤 보존 비교에서 제외합니다. 나머지 모든 리소스, 기존 7개 앱, namespace와 스토리지 비교는 유지합니다. DNS/TLS와 초기 앱 배포 검증은 완료됐고, 이번 bridge 배포 및 module upload/activate·E2E는 root의 후속 라이브 검증 대상입니다.
+정적 테스트는 환경 혼합 거부, dev writeback/fanout, 이미지·Argo values·namespace 계약, 기존 prod 렌더 보존을 확인합니다. 온프레미스 렌더 비교는 origin·image와 의도된 두 sectionName 변경만 허용하고 dev Route가 dev listener를 참조하는지 확인합니다. publisher off/on을 모두 검증하며, on에서 추가되는 `qc-nv-module-publish` Job 한 개만 이름·PostSync·dev 환경·namespace·기존 Secret·허용 publisher·불변 digest를 명시 검증한 뒤 보존 비교에서 제외합니다. 나머지 모든 리소스, 기존 7개 앱, namespace와 스토리지 비교는 유지합니다. DNS/TLS, bridge 배포, module upload/activate 및 5기능 E2E도 위 실제 배포 검증에서 통과했습니다.
 
-아래는 담당자가 활성화 후 실행할 예시이며 이번 로컬 구현에서는 실행하지 않았습니다. 저장된 `gh` 인증을 사용하고 토큰을 출력하지 않습니다.
+아래는 후속 운영 점검과 필요할 때 수동 재빌드에 사용할 예시입니다. 저장된 `gh` 인증을 사용하고 토큰을 출력하지 않습니다.
 
 ```bash
 # 읽기: dev workflow 실행 결과 조회
