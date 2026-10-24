@@ -1,0 +1,6 @@
+# 기존 배포의 마지막 valueFile로 적용하는 개발 DNS-only override입니다.
+global:
+  hosts:
+    shell: qc-dev.quantum-instrument.com
+    modules: modules.qc-dev.quantum-instrument.com
+  issuer: https://qc-dev.quantum-instrument.com

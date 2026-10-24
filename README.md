@@ -4,6 +4,16 @@
 
 **NKS 공공 클라우드의 새 운영/개발 배포는 바로 아래 NKS 절차를 사용하십시오.** 그 밖의 기존 운영 명령은 FAB 환경의 hostname·StorageClass·Gateway를 전제로 합니다. 기존 prod/dev/ephemeral values와 Argo CD Application, 이미지 digest는 그대로 유지합니다. `dev` 브랜치는 향후 `prod`로 사용할 예정이며 이번 변경에서 rename하거나 기존 Argo `targetRevision`을 변경하지 않습니다.
 
+## 기존 개발 배포의 DNS 반영 (2026-10-24)
+
+개발 shell은 `qc-dev.quantum-instrument.com`, modules는 `modules.qc-dev.quantum-instrument.com`, issuer는 `https://qc-dev.quantum-instrument.com`으로 확정했습니다. `values/dev-dns.yaml`은 기존 `values/dev-app.yaml`과 같은 주소 계약의 `global.hosts.shell`, `global.hosts.modules`, `global.issuer`만 설정하는 DNS-only override입니다. namespace·Secret·데이터·노드 배치·이미지·replica·Gateway listener는 변경하지 않으므로 현재 개발 배포의 namespace에 그대로 적용할 수 있습니다.
+
+실제 개발 Argo Application명·namespace·overrides는 이 PC에서 확인하지 못했습니다. 대상 Application을 확인한 뒤 기존 `spec.source.helm.valueFiles`의 **마지막**에 `../../values/dev-dns.yaml`을 추가하십시오. 더 우선하는 `valuesObject`·`values`·`parameters`에 hosts/issuer가 있으면 그 값도 위 확정값으로 갱신해야 합니다. `dev` Git 브랜치라는 이유로 namespace를 바꾸거나 기존 `qc-prod-app`을 재대상화하지 않습니다. 기존 namespace·데이터·Secret 이동은 필요하지 않습니다.
+
+외부 infra의 Gateway listener hostname과 TLS 인증서 SAN도 두 개발 host에 맞춰야 합니다. 운영용 shared Gateway·cert·HAProxy 파일의 일괄 치환은 하지 않습니다. 이미 등록된 활성 모듈의 DB manifest(`module_url`·`direct_api_base_url`·`connect_src`)가 기존 origin을 가리키면 별도 확인·갱신이 필요하며, 이 override는 DB SQL이나 새 migration을 실행하지 않습니다.
+
+현재 DNS는 등록 중이며 원격 Argo sync는 아직 수행하지 않았습니다. DNS 전파·인증서 발급 완료나 실제 배포 성공을 의미하지 않습니다.
+
 ## NKS 공공 클라우드 운영/개발 배포
 
 이 프로필은 **새 NKS 클러스터/배포에 데이터를 복원하는 경우**에 사용합니다. 기존 PVC의 StorageClass를 제자리에서 변경하지 않습니다. StorageClass·PV·Node·Gateway 자체는 chart가 생성하지 않으며 `volumeName`이나 PV selector로 기존 볼륨을 지정하지 않습니다.
@@ -24,7 +34,7 @@ MinIO 재활성화 시 내부 저장소를 쓰려면 앱의 `apps.setupRegistry.
 
 ### 현장 site-values 필수 입력
 
-NKS app override는 `dnsResolver`, `trustedProxies`, host, Gateway 참조, issuer의 기존 FAB 값을 지우고 `httpRoutes.enabled: false`로 시작합니다. **DNS/host 미입력은 schema 검사에서 실패합니다.** 아래 파일의 `<...>`를 MSP가 확인한 실제 값으로 모두 교체해 별도로 보관하십시오. DNS는 Pod에서 사용할 실제 cluster DNS IP, proxy CIDR은 Auth가 신뢰할 실제 프록시 대역이며 기존 `10.96.0.10`/`10.244.2.0/24`를 그대로 복사하지 않습니다. `issuer`는 shell의 실제 HTTPS origin입니다. 외부 Gateway/listener·TLS·DNS 준비가 끝난 경우에만 아래처럼 HTTPRoute를 켭니다.
+NKS 운영·개발 app override는 미확정인 `global.dnsResolver`, `global.trustedProxies`, `global.gateway` 참조를 빈값으로 두고 `httpRoutes.enabled: false`로 시작합니다. `values/nks-prod-app.yaml`은 host/issuer도 비우지만, `values/nks-dev-app.yaml`은 위에서 확정한 두 개발 host와 issuer를 갖습니다. **DNS/host 필수 항목이 비어 있으면 schema 검사에서 실패합니다.** 아래 파일의 `<...>`를 MSP가 확인한 실제 값으로 모두 교체해 별도로 보관하십시오. DNS는 Pod에서 사용할 실제 cluster DNS IP, proxy CIDR은 Auth가 신뢰할 실제 프록시 대역이며 기존 `10.96.0.10`/`10.244.2.0/24`를 그대로 복사하지 않습니다. `issuer`는 shell의 실제 HTTPS origin입니다. 외부 Gateway/listener·TLS·DNS 준비가 끝난 경우에만 아래처럼 HTTPRoute를 켭니다.
 
 운영 `site-values-prod.yaml`:
 
@@ -46,7 +56,7 @@ httpRoutes:
   enabled: true
 ```
 
-개발 `site-values-dev.yaml`:
+새 NKS 개발 설치용 `site-values-dev.yaml`:
 
 ```yaml
 global:
@@ -54,9 +64,9 @@ global:
   dnsResolver: "<실제_CLUSTER_DNS_IP>"
   trustedProxies: "<실제_PROXY_CIDR>"
   hosts:
-    shell: "<개발_SHELL_DNS_HOST>"
-    modules: "<개발_MODULES_DNS_HOST>"
-  issuer: "https://<개발_SHELL_DNS_HOST>"
+    shell: "qc-dev.quantum-instrument.com"
+    modules: "modules.qc-dev.quantum-instrument.com"
+  issuer: "https://qc-dev.quantum-instrument.com"
   gateway:
     name: "<기존_GATEWAY_NAME>"
     namespace: "<기존_GATEWAY_NAMESPACE>"
@@ -96,7 +106,7 @@ kubectl annotate namespace "$QC_NKS_NAMESPACE" \
 
 ### 정확한 values 순서와 설치
 
-아래는 현장 값을 채우고 Secret·버킷을 준비한 뒤 실행할 명령입니다. `prod-stateful.yaml`과 `prod-app-images.yaml`을 포함해 기존 고정 이미지를 사용합니다. 표의 왼쪽부터 오른쪽 순서를 지키며 site-values는 항상 마지막에 둡니다. site-values에는 위 환경 설정만 넣고 replica나 이미지는 변경하지 않습니다.
+아래는 현장 값을 채우고 Secret·버킷을 준비한 뒤 실행할 명령입니다. `prod-stateful.yaml`과 `prod-app-images.yaml`을 포함해 기존 고정 이미지를 사용합니다. 표의 왼쪽부터 오른쪽 순서를 지키며 site-values는 환경 프로필 뒤에 둡니다. 개발 DNS-only override를 함께 쓰면 `values/dev-dns.yaml`을 site-values보다 뒤인 마지막에 추가합니다. site-values에는 위 환경 설정만 넣고 replica나 이미지는 변경하지 않습니다.
 
 | 대상 | values 순서 | 앱 replica |
 |---|---|---|
