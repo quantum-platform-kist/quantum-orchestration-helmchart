@@ -1,9 +1,10 @@
 {
   "images": {
     "setupModules": {
-      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/setup-modules",
-      "tag": "2026.10.12-003",
-      "digest": "sha256:23ddb974dce559d8424dfcb3d4adfbe5af50ed782ee7561158673345cd779fbe"
+      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-sdk/setup-modules",
+      "tag": "prod-711ae9af458e-40059159193-1",
+      "digest": "sha256:797a43f10c5a6732a889e8e08a2bdab9e8d4195694dac29b5c5e2c9b2e6361e7",
+      "sourceFingerprint": "60ebdd53d8359ae855e6607ba0606eaaca37f76adfb29ad4b0d67de4446a6879"
     }
   }
 }
