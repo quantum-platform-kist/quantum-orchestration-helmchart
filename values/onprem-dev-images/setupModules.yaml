@@ -2,8 +2,9 @@
   "images": {
     "setupModules": {
       "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-sdk/setup-modules",
-      "tag": "prod-711ae9af458e-40059159193-1",
-      "digest": "sha256:797a43f10c5a6732a889e8e08a2bdab9e8d4195694dac29b5c5e2c9b2e6361e7"
+      "tag": "dev-01ee8bca6e60-40101380437-1",
+      "digest": "sha256:fb3e13456c461ec0e675465be6130fc2daf934bfcbeeb4c1a50a255094985534",
+      "sourceFingerprint": "584c6e9e0cd0fd47b5edab8267cce676bbb20282205a9b90997c2fb0ac09833c"
     }
   }
 }
