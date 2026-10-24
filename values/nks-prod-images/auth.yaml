@@ -1,9 +1,10 @@
 {
   "images": {
     "auth": {
-      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/auth",
-      "tag": "2026.10.12-001",
-      "digest": "sha256:20cef6eea650a02007bca13753735cfba45054adc6ab4e0cbbb032b342b79c89"
+      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-auth-computer/auth",
+      "tag": "prod-3cfd39257d43-40061039595-1",
+      "digest": "sha256:0c844f8c6b743284b87cf7bb63c92611ff87d50458382f8b800ddb9198dfbc0b",
+      "sourceFingerprint": "d9979e990f30285c9ac5d03acf1c3183d5cb899036eee1a4af82f129bf4c8c0d"
     }
   }
 }
