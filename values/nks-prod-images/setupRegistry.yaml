@@ -2,9 +2,9 @@
   "images": {
     "setupRegistry": {
       "repository": "ghcr.io/quantum-platform-kist/quantum-setup-registry/setup-registry",
-      "tag": "prod-22002b346789-40060447318-1",
-      "digest": "sha256:3be8481efed3490405cc411056735d2e86c99f013b7aeb31fb05767abdb83af2",
-      "sourceFingerprint": "fbab6daf62018f805b170e0b42ce2aaa07ab0d1e78f9bae15cb0e6394a9adba4"
+      "tag": "prod-f60c7249ef70-40061469783-1",
+      "digest": "sha256:10b51ce655ae8056f5eb0c6281902d241cb1bd67f6ecfb1f58a776f8ac11c795",
+      "sourceFingerprint": "1fcd7b16715a023ffa04f82276a32d8a1de53a2d06a35b029947a7d3853471ef"
     }
   }
 }
