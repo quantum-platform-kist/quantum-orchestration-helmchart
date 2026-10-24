@@ -25,6 +25,7 @@
     "fanout": [
       "auth-computer",
       "setup-registry",
+      "job-orchestrator",
       "setup-a-be"
     ]
   },

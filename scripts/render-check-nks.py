@@ -188,6 +188,21 @@ def environment(docs, name):
     return {item["name"]: item for item in container.get("env", [])}
 
 
+def check_job_service_credentials(docs, secret, setup_id="stp_nv_a1"):
+    env = environment(docs, "job-orchestrator")
+    require(env["JOB_ORCHESTRATOR_AUTH_CLIENT_ID"]["value"] == f"setup-be:{setup_id}",
+            "Job must reuse the configured setup service-account identity")
+    require(env["JOB_ORCHESTRATOR_AUTH_TOKEN_URI"]["value"] == "http://auth:8081/oauth2/token",
+            "Job must use the official Auth token endpoint")
+    key = "JOB_ORCHESTRATOR_AUTH_CLIENT_SECRET"
+    require(env[key] == {"name": key, "valueFrom": {"secretKeyRef": {"name": secret, "key": key}}},
+            "Job client secret must reference the existing Secret key")
+    require(env["QUANTUM_SETUP_SECURITY_CLIENT_SECRET"]["valueFrom"] == env[key]["valueFrom"],
+            "Registry read and existing Auth clients must reuse the same account secret")
+    require("SETUP_REGISTRY_SERVICE_TOKEN" not in env,
+            "Job must not use a static Registry bearer token")
+
+
 def check_app(docs, profile, endpoint=OBJECT_ENDPOINT, routes=False):
     deployments = resources(docs, "Deployment")
     require(set(deployments) == {"auth", "gateway", "setup-registry", "job-orchestrator",
@@ -210,6 +225,7 @@ def check_app(docs, profile, endpoint=OBJECT_ENDPOINT, routes=False):
     bucket = "kist-obj-dev" if profile.startswith("dev-") else "kist-obj"
     require(env["MODULE_STORAGE_BUCKET"]["value"] == bucket, "운영/개발 버킷이 다릅니다")
     secret = "qc-dev-app-secrets" if profile.startswith("dev-") else "qc-prod-app-secrets"
+    check_job_service_credentials(docs, secret)
     for key in ("MODULE_STORAGE_ACCESS_KEY", "MODULE_STORAGE_SECRET_KEY"):
         require(env[key] == {"name": key, "valueFrom": {"secretKeyRef": {"name": secret, "key": key}}},
                 f"{key}: 기존 Secret key 참조를 유지해야 합니다")
@@ -293,6 +309,19 @@ def main():
                                                     "--set", "statefulServices.minio=custom-minio"], site)
         check_app(custom_service, "prod-app-online", endpoint="http://custom-minio:9000")
         print("PASS NKS HTTPRoute/site-values·endpoint 그대로 출력·기존 내부 endpoint fallback")
+
+        registry_off = render("prod-app-online", ["--set", "apps.setupRegistry.replicas=0",
+                                                  "--set", "modulePublish.enabled=false"], site)
+        stopped_deployments = resources(registry_off, "Deployment")
+        require(stopped_deployments["setup-registry"]["spec"]["replicas"] == 0,
+                "Registry stop override must remain effective")
+        require(stopped_deployments["job-orchestrator"]["spec"]["replicas"] == 1,
+                "Stopping Registry must not stop Job")
+        require(not resources(registry_off, "Job"), "Module publishing must remain disabled")
+        check_job_service_credentials(registry_off, "qc-prod-app-secrets")
+        custom_setup = render("prod-app-online", ["--set", "global.moduleSetupId=stp_regression"], site)
+        check_job_service_credentials(custom_setup, "qc-prod-app-secrets", "stp_regression")
+        print("PASS Job service credentials, setup identity, Registry stop and publisher disable overrides")
 
         for endpoint in ("ftp://object.example.invalid", "https://", "https://bad host", "object.example.invalid",
                          "https://object.example.invalid:9443/storage",

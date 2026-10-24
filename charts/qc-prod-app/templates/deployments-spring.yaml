@@ -273,6 +273,11 @@ spec:
               value: http://auth:8081/oauth2/token
             {{- include "qc-app.secretEnv" (dict "name" "JOB_ORCHESTRATOR_DB_USERNAME" "secretName" .Values.secrets.app.name "key" "JOB_ORCHESTRATOR_DB_USERNAME") | nindent 12 }}
             {{- include "qc-app.secretEnv" (dict "name" "JOB_ORCHESTRATOR_DB_PASSWORD" "secretName" .Values.secrets.app.name "key" "JOB_ORCHESTRATOR_DB_PASSWORD") | nindent 12 }}
+            - name: JOB_ORCHESTRATOR_AUTH_CLIENT_ID
+              value: {{ printf "setup-be:%s" .Values.global.moduleSetupId | quote }}
+            - name: JOB_ORCHESTRATOR_AUTH_TOKEN_URI
+              value: http://auth:8081/oauth2/token
+            {{- include "qc-app.secretEnv" (dict "name" "JOB_ORCHESTRATOR_AUTH_CLIENT_SECRET" "secretName" .Values.secrets.app.name "key" "JOB_ORCHESTRATOR_AUTH_CLIENT_SECRET") | nindent 12 }}
             {{- include "qc-app.secretEnv" (dict "name" "QUANTUM_SETUP_SECURITY_CLIENT_SECRET" "secretName" .Values.secrets.app.name "key" "JOB_ORCHESTRATOR_AUTH_CLIENT_SECRET") | nindent 12 }}
           {{- include "qc-app.springProbes" . | nindent 10 }}
           resources:

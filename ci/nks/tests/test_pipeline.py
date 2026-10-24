@@ -17,6 +17,10 @@ import writeback
 
 
 class PipelineTests(unittest.TestCase):
+    def test_auth_client_changes_rebuild_job_from_the_same_auth_source(self):
+        self.assertIn("auth", common.TARGETS["job-orchestrator"]["needs"])
+        self.assertIn("job-orchestrator", common.TARGETS["auth"]["fanout"])
+
     def test_public_helm_cannot_be_a_product_caller(self):
         with self.assertRaises(RuntimeError):
             common.identify(common.HELM)
