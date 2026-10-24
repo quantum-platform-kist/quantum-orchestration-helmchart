@@ -2,9 +2,9 @@
   "images": {
     "auth": {
       "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-auth-computer/auth",
-      "tag": "dev-6b5c6a53bca0-40101367468-1",
-      "digest": "sha256:c8dc9e7342742146c5940ea7f96384d833979782b3566a1d5ccefa442515b395",
-      "sourceFingerprint": "7b851236c4b2d491444ca03213fa9cf4b81d482e7d573566e85a80b506d33393"
+      "tag": "dev-6b5c6a53bca0-40103777387-1",
+      "digest": "sha256:25b08b0a037d450b50af2a0b60ed209a8bb262193f2eb83a940ac798a9d8f15f",
+      "sourceFingerprint": "c99c9c0d8673032cbbc3da844deaed3d35d8d6fbaf299e7a808e88c51b15106f"
     }
   }
 }
