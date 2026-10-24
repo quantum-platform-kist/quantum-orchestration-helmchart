@@ -29,10 +29,6 @@ spec:
           gateway:
             shellSectionName: qc-dev-shell-https
             moduleSectionName: qc-dev-modules-https
-      parameters:
-        # 신규 dev 이미지와 기존 셋업/Secret을 확인한 뒤 별도 검토로 해제합니다.
-        - name: modulePublish.enabled
-          value: "false"
   destination:
     server: https://kubernetes.default.svc
     namespace: quantum-cloud-prod
