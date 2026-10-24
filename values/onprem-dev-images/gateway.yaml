@@ -2,8 +2,9 @@
   "images": {
     "gateway": {
       "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-gateway/gateway",
-      "tag": "prod-b0f41f70a3d8-40066479928-1",
-      "digest": "sha256:ac5311ab0971bbc823d51adbd2d37f2caed492c83e5fdff19b852ba757cc2c45"
+      "tag": "dev-0a5a274ff591-40101369549-1",
+      "digest": "sha256:e9ef610b880f7d8739d2cc0ef89d4e1c574083940584aaa4c7aec220c12b8e59",
+      "sourceFingerprint": "9418b2373961882e60a18066488f4e3b7e7c83398a64cb05b069738981418fb0"
     }
   }
 }
