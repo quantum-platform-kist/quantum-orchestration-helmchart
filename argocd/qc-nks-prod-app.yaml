@@ -10,6 +10,11 @@ spec:
   project: "default"
   source:
     helm:
+      parameters:
+        - name: "apps.setupRegistry.replicas"
+          value: "0"
+        - name: "modulePublish.enabled"
+          value: "false"
       valueFiles:
         - "../../values/prod-app.yaml"
         - "../../values/prod-app-images.yaml"
