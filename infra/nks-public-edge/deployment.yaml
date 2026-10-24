@@ -1,0 +1,112 @@
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "qc-public-proxy"
+  namespace: "argocd"
+  labels:
+    app.kubernetes.io/part-of: "quantum-cloud-public-edge"
+    app.kubernetes.io/name: "qc-public-proxy"
+spec:
+  replicas: 2
+  strategy:
+    type: "RollingUpdate"
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    spec:
+      automountServiceAccountToken: false
+      volumes:
+        -
+          name: "config"
+          configMap:
+            name: "qc-public-proxy-nginx"
+            defaultMode: 292
+        -
+          name: "tmp"
+          emptyDir:
+            sizeLimit: "64Mi"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            -
+              podAffinityTerm:
+                topologyKey: "kubernetes.io/hostname"
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: "qc-public-proxy"
+              weight: 100
+      containers:
+        -
+          imagePullPolicy: "IfNotPresent"
+          image: "ghcr.io/nginx/nginx-unprivileged@sha256:9a7517258993d0a83994969223b4e9b75a30aae86a649706385a5875dff5deea"
+          readinessProbe:
+            initialDelaySeconds: 2
+            timeoutSeconds: 2
+            periodSeconds: 5
+            failureThreshold: 3
+            httpGet:
+              port: "http"
+              path: "/health"
+          name: "nginx"
+          command:
+            - "/bin/sh"
+            - "-ec"
+          volumeMounts:
+            -
+              mountPath: "/etc/nginx/nginx.conf"
+              subPath: "nginx.conf"
+              readOnly: true
+              name: "config"
+            -
+              mountPath: "/tmp"
+              name: "tmp"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - "ALL"
+            readOnlyRootFilesystem: true
+          resources:
+            limits:
+              memory: "128Mi"
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
+          args:
+            - "nginx -t && exec nginx -g 'daemon off;'"
+          livenessProbe:
+            initialDelaySeconds: 10
+            timeoutSeconds: 2
+            periodSeconds: 10
+            failureThreshold: 3
+            httpGet:
+              port: "http"
+              path: "/health"
+          ports:
+            -
+              containerPort: 8080
+              protocol: "TCP"
+              name: "http"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: "RuntimeDefault"
+        runAsGroup: 101
+        fsGroup: 101
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+        kubernetes.io/arch: "amd64"
+        kubernetes.io/os: "linux"
+        qc.quantum-cloud/role: "app"
+    metadata:
+      annotations:
+        checksum/nginx-config: "1cd5d57cab52eb4aa652fbc72915bfb0ebe5877c82ef0c547151f1b9cb86984b"
+      labels:
+        app.kubernetes.io/part-of: "quantum-cloud-public-edge"
+        app.kubernetes.io/name: "qc-public-proxy"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "qc-public-proxy"
+  revisionHistoryLimit: 2

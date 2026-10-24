@@ -1,0 +1,78 @@
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "qc-public-proxy-nginx"
+  namespace: "argocd"
+  labels:
+    app.kubernetes.io/part-of: "quantum-cloud-public-edge"
+    app.kubernetes.io/name: "qc-public-proxy"
+data:
+  nginx.conf: |
+    worker_processes 1;
+    pid /tmp/nginx.pid;
+    error_log /dev/stderr warn;
+    
+    events {
+        worker_connections 1024;
+    }
+    
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+        access_log /dev/stdout combined;
+        server_tokens off;
+        sendfile on;
+        keepalive_timeout 65;
+        client_max_body_size 25m;
+        client_body_temp_path /tmp/client_temp;
+        proxy_temp_path /tmp/proxy_temp;
+        fastcgi_temp_path /tmp/fastcgi_temp;
+        uwsgi_temp_path /tmp/uwsgi_temp;
+        scgi_temp_path /tmp/scgi_temp;
+    
+        resolver 169.254.25.10 valid=10s ipv6=off;
+        resolver_timeout 3s;
+    
+        map $host $qc_backend {
+            default "";
+            qc.quantum-instrument.com shell.quantum-cloud-prod.svc.cluster.local:8080;
+            modules.qc.quantum-instrument.com setup-modules.quantum-cloud-prod.svc.cluster.local:8080;
+        }
+        map $http_upgrade $qc_connection_upgrade {
+            default upgrade;
+            "" close;
+        }
+    
+        server {
+            listen 8080 default_server;
+            server_name _;
+    
+            # Probes and the ALB health check use an IP Host header.
+            location = /health {
+                access_log off;
+                default_type text/plain;
+                return 200 "ok\n";
+            }
+    
+            location / {
+                if ($qc_backend = "") { return 404; }
+                proxy_pass http://$qc_backend;
+                proxy_http_version 1.1;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-Host $host;
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header Forwarded "proto=https;host=$host";
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection $qc_connection_upgrade;
+                proxy_connect_timeout 5s;
+                proxy_send_timeout 3600s;
+                proxy_read_timeout 3600s;
+                proxy_buffering off;
+                proxy_request_buffering off;
+                proxy_redirect off;
+            }
+        }
+    }

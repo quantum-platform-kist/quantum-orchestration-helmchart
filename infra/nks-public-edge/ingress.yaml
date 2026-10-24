@@ -1,0 +1,54 @@
+apiVersion: "networking.k8s.io/v1"
+kind: "Ingress"
+metadata:
+  name: "argocd-server"
+  namespace: "argocd"
+  annotations:
+    alb.ingress.kubernetes.io/description: "kist argocd"
+    alb.ingress.kubernetes.io/healthcheck-path: "/healthz"
+    alb.ingress.kubernetes.io/listen-ports: "[{\"HTTP\": 80},{\"HTTPS\": 443}]"
+    alb.ingress.kubernetes.io/load-balancer-name: "kist-argocd-alb"
+    alb.ingress.kubernetes.io/network-type: "public"
+    alb.ingress.kubernetes.io/ssl-certificate-no: "36550,37185"
+    alb.ingress.kubernetes.io/ssl-min-version: "TLSV12"
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/subnet-id: "62932"
+spec:
+  ingressClassName: "alb"
+  rules:
+    -
+      host: "kist.isusystem.com"
+      http:
+        paths:
+          -
+            backend:
+              service:
+                name: "argocd-server"
+                port:
+                  number: 80
+            path: "/"
+            pathType: "Prefix"
+    -
+      host: "qc.quantum-instrument.com"
+      http:
+        paths:
+          -
+            backend:
+              service:
+                name: "qc-public-proxy"
+                port:
+                  number: 8080
+            path: "/"
+            pathType: "Prefix"
+    -
+      host: "modules.qc.quantum-instrument.com"
+      http:
+        paths:
+          -
+            backend:
+              service:
+                name: "qc-public-proxy"
+                port:
+                  number: 8080
+            path: "/"
+            pathType: "Prefix"

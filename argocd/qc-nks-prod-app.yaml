@@ -1,0 +1,47 @@
+apiVersion: "argoproj.io/v1alpha1"
+kind: "Application"
+metadata:
+  name: "qc-nks-prod-app"
+  namespace: "argocd"
+spec:
+  destination:
+    namespace: "quantum-cloud-prod"
+    server: "https://kubernetes.default.svc"
+  project: "default"
+  source:
+    helm:
+      valueFiles:
+        - "../../values/prod-app.yaml"
+        - "../../values/prod-app-images.yaml"
+        - "../../values/nks-prod-app.yaml"
+        - "../../values/nks-prod-images/auth.yaml"
+        - "../../values/nks-prod-images/gateway.yaml"
+        - "../../values/nks-prod-images/setupRegistry.yaml"
+        - "../../values/nks-prod-images/jobOrchestrator.yaml"
+        - "../../values/nks-prod-images/setupABe.yaml"
+        - "../../values/nks-prod-images/shell.yaml"
+        - "../../values/nks-prod-images/setupModules.yaml"
+        - "../../values/nks-prod-images/modulePublisher.yaml"
+        - "../../values/prod-app-online.yaml"
+      valuesObject:
+        global:
+          dnsResolver: "169.254.25.10"
+          hosts:
+            modules: "modules.qc.quantum-instrument.com"
+            shell: "qc.quantum-instrument.com"
+          issuer: "https://qc.quantum-instrument.com"
+          namespace: "quantum-cloud-prod"
+          trustedProxies: "198.18.1.0/24,198.18.2.0/24"
+        httpRoutes:
+          enabled: false
+    path: "charts/qc-prod-app"
+    repoURL: "https://github.com/quantum-platform-kist/quantum-orchestration-helmchart.git"
+    targetRevision: "prod"
+  syncPolicy:
+    syncOptions:
+      - "CreateNamespace=false"
+      - "FailOnSharedResource=true"
+      - "Prune=false"
+    automated:
+      prune: false
+      selfHeal: true
