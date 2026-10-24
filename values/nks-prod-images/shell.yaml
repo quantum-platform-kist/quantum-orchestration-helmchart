@@ -1,9 +1,10 @@
 {
   "images": {
     "shell": {
-      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/shell",
-      "tag": "2026.10.12-003",
-      "digest": "sha256:2ed31bff51e83d5ce70f7452d6fd1b62cf1422386b2835ad0029b87b8b983e54"
+      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-shell/shell",
+      "tag": "prod-68fb36b196c5-40059217066-1",
+      "digest": "sha256:6dc97338a46823670d32b5dde66ec8afac53392ad14178913410fb5ca534d700",
+      "sourceFingerprint": "a54b09841a396ff0c35ef145ee316ef5555d7f2284579fbcf6657b7f99b15705"
     }
   }
 }
