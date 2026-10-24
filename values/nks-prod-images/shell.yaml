@@ -1,0 +1,9 @@
+{
+  "images": {
+    "shell": {
+      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/shell",
+      "tag": "2026.10.12-003",
+      "digest": "sha256:2ed31bff51e83d5ce70f7452d6fd1b62cf1422386b2835ad0029b87b8b983e54"
+    }
+  }
+}

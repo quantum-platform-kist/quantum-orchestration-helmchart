@@ -1,0 +1,38 @@
+name: NKS Helm validation
+on:
+  push:
+    branches: [prod]
+  pull_request:
+    branches: [prod]
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Install pinned Helm with checksum verification
+        env:
+          HELM_VERSION: v3.22.1
+        run: |
+          set -euo pipefail
+          archive="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location "https://get.helm.sh/${archive}" --output "$RUNNER_TEMP/$archive"
+          curl --fail --silent --show-error --location "https://get.helm.sh/${archive}.sha256sum" --output "$RUNNER_TEMP/${archive}.sha256sum"
+          (cd "$RUNNER_TEMP" && sha256sum --check "${archive}.sha256sum")
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
+          sudo install "$RUNNER_TEMP/linux-amd64/helm" /usr/local/bin/helm
+      - name: Install YAML verifier
+        run: |
+          python3 -m venv "$RUNNER_TEMP/nks-verify"
+          "$RUNNER_TEMP/nks-verify/bin/python" -m pip install 'PyYAML==6.0.3'
+          echo "$RUNNER_TEMP/nks-verify/bin" >> "$GITHUB_PATH"
+      - name: Render existing and NKS profiles without cluster access
+        env:
+          KUBECONFIG: /dev/null
+        run: bash scripts/render-check.sh
+      - name: Validate immutable NKS image overrides and publisher hook
+        run: python3 ci/nks/validate_values.py

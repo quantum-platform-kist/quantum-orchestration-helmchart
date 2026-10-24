@@ -1,0 +1,69 @@
+name: NKS private repository build
+on:
+  workflow_call:
+    secrets:
+      NKS_SOURCE_TOKEN:
+        required: true
+      NKS_GITOPS_TOKEN:
+        required: false
+      NKS_PACKAGE_READ_TOKEN:
+        required: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/prod' && github.repository != 'quantum-platform-kist/quantum-orchestration-helmchart'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout public CI tooling only
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: quantum-platform-kist/quantum-orchestration-helmchart
+          ref: prod
+          path: tooling
+          persist-credentials: false
+      - name: Resolve immutable private source snapshot
+        id: target
+        env:
+          NKS_SOURCE_TOKEN: ${{ secrets.NKS_SOURCE_TOKEN }}
+        run: python3 tooling/ci/nks/checkout_sources.py
+      - name: Set up JDK 25
+        if: steps.target.outputs.build_required == 'true' && steps.target.outputs.runtime == 'java'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Set up Node.js
+        if: steps.target.outputs.build_required == 'true' && steps.target.outputs.runtime == 'node'
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '22'
+      - name: Validate and build the source snapshot
+        if: steps.target.outputs.build_required == 'true'
+        env:
+          USERNAME: ccxz84
+          PACKAGE_READ_USERNAME: ccxz84
+          TOKEN: ${{ secrets.NKS_PACKAGE_READ_TOKEN }}
+          PACKAGE_READ_TOKEN: ${{ secrets.NKS_PACKAGE_READ_TOKEN }}
+        run: bash tooling/ci/nks/build.sh
+      - name: Reject superseded source snapshots
+        if: steps.target.outputs.build_required == 'true'
+        id: current
+        env:
+          NKS_SOURCE_TOKEN: ${{ secrets.NKS_SOURCE_TOKEN }}
+        run: python3 tooling/ci/nks/check_current.py
+      - name: Push only this repository's immutable images
+        if: steps.current.outputs.current == 'true'
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USERNAME: ${{ github.actor }}
+        run: python3 tooling/ci/nks/push_images.py
+      - name: Update only NKS prod component digest values
+        if: steps.current.outputs.current == 'true'
+        env:
+          NKS_GITOPS_TOKEN: ${{ secrets.NKS_GITOPS_TOKEN }}
+        run: python3 tooling/ci/nks/writeback.py
+      - name: Rebuild affected private consumers
+        if: steps.current.outputs.current == 'true'
+        env:
+          NKS_SOURCE_TOKEN: ${{ secrets.NKS_SOURCE_TOKEN }}
+        run: python3 tooling/ci/nks/fanout.py

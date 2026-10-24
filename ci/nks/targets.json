@@ -1,0 +1,154 @@
+{
+  "core": {
+    "repo": "quantum-platform-core",
+    "runtime": "java",
+    "needs": [
+      "core"
+    ],
+    "outputs": [],
+    "fanout": [
+      "auth-computer",
+      "gateway",
+      "setup-registry",
+      "job-orchestrator",
+      "setup-a-be"
+    ]
+  },
+  "auth": {
+    "repo": "quantum-orchestration-auth",
+    "runtime": "java",
+    "needs": [
+      "core",
+      "auth"
+    ],
+    "outputs": [],
+    "fanout": [
+      "auth-computer",
+      "setup-registry",
+      "setup-a-be"
+    ]
+  },
+  "auth-computer": {
+    "repo": "quantum-orchestration-auth-computer",
+    "runtime": "java",
+    "needs": [
+      "core",
+      "auth",
+      "auth-computer"
+    ],
+    "outputs": [
+      "auth"
+    ],
+    "fanout": []
+  },
+  "gateway": {
+    "repo": "quantum-orchestration-gateway",
+    "runtime": "java",
+    "needs": [
+      "gateway"
+    ],
+    "outputs": [
+      "gateway"
+    ],
+    "fanout": []
+  },
+  "setup-registry": {
+    "repo": "quantum-setup-registry",
+    "runtime": "java",
+    "needs": [
+      "core",
+      "auth",
+      "setup-registry"
+    ],
+    "outputs": [
+      "setupRegistry"
+    ],
+    "fanout": [
+      "job-orchestrator",
+      "setup-a-be"
+    ]
+  },
+  "job-orchestrator": {
+    "repo": "quantum-orchestration-job",
+    "runtime": "java",
+    "needs": [
+      "core",
+      "auth",
+      "setup-registry",
+      "job-orchestrator"
+    ],
+    "outputs": [
+      "jobOrchestrator"
+    ],
+    "fanout": [
+      "setup-a-be"
+    ]
+  },
+  "setup-a-be": {
+    "repo": "quantum-setup-nv-backend",
+    "runtime": "java",
+    "needs": [
+      "core",
+      "auth",
+      "setup-registry",
+      "job-orchestrator",
+      "setup-a-be"
+    ],
+    "outputs": [
+      "setupABe"
+    ],
+    "fanout": []
+  },
+  "shell": {
+    "repo": "quantum-orchestration-shell",
+    "runtime": "node",
+    "needs": [
+      "sdk",
+      "ui",
+      "shell"
+    ],
+    "outputs": [
+      "shell"
+    ],
+    "fanout": []
+  },
+  "sdk": {
+    "repo": "quantum-orchestration-sdk",
+    "runtime": "node",
+    "needs": [
+      "sdk"
+    ],
+    "outputs": [
+      "setupModules"
+    ],
+    "fanout": [
+      "shell",
+      "setup-a"
+    ]
+  },
+  "ui": {
+    "repo": "quantum-orchestration-ui",
+    "runtime": "node",
+    "needs": [
+      "ui"
+    ],
+    "outputs": [],
+    "fanout": [
+      "shell",
+      "setup-a"
+    ]
+  },
+  "setup-a": {
+    "repo": "quantum-setup-nv-frontend",
+    "runtime": "node",
+    "needs": [
+      "sdk",
+      "ui",
+      "setup-a"
+    ],
+    "outputs": [
+      "modulePublisher"
+    ],
+    "fanout": []
+  }
+}

@@ -251,7 +251,7 @@ def check_profile_inputs():
 def reject(label, profile, extra, site, reason):
     result = run(command(profile, extra, site))
     require(result.returncode != 0, f"잘못된 설정을 허용했습니다: {label}")
-    require(reason in result.stderr, f"예상하지 않은 거부 사유: {label}\n{result.stderr}")
+    require(reason.lower() in result.stderr.replace("/", ".").lower(), f"예상하지 않은 거부 사유: {label}\n{result.stderr}")
     print(f"PASS NKS 거부: {label} ({reason})")
 
 
@@ -308,11 +308,11 @@ def main():
                    ["--set-string", f"apps.setupRegistry.moduleStorageEndpoint={escaped_endpoint}"], site,
                    "apps.setupRegistry.moduleStorageEndpoint")
         reject("endpoint bool 타입", "prod-app", ["--set", "apps.setupRegistry.moduleStorageEndpoint=true"],
-               site, "Expected: string")
+               site, "string")
         reject("빈 bucket", "prod-app", ["--set-string", "apps.setupRegistry.moduleStorageBucket="],
                site, "apps.setupRegistry.moduleStorageBucket")
         reject("bucket bool 타입", "prod-app", ["--set", "apps.setupRegistry.moduleStorageBucket=true"],
-               site, "Expected: string")
+               site, "string")
         no_dns = deepcopy(SITE_GLOBAL)
         del no_dns["dnsResolver"]
         missing_dns = Path(directory) / "missing-dns.yaml"

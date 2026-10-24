@@ -1,0 +1,27 @@
+// Bind private prod builds to the source-matched artifacts published in this runner.
+// Older transitive package versions must not win Gradle's highest-version selection.
+def nksVersion = System.getenv('NKS_BUILD_VERSION')
+def workspaceRoot = new File(System.getenv('GITHUB_WORKSPACE'), 'workspace')
+if (!nksVersion) throw new GradleException('NKS_BUILD_VERSION is required')
+
+allprojects {
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            def requested = details.requested
+            boolean localCore = new File(workspaceRoot, 'core').isDirectory() &&
+                    requested.group == 'com.quantumcloud' &&
+                    (requested.name.startsWith('quantum-cloud-core-') || requested.name == 'quantum-cloud-cores')
+            boolean localAuth = new File(workspaceRoot, 'auth').isDirectory() &&
+                    ((requested.group == 'com.quantumcloud.auth' && requested.name == 'auth-core') ||
+                     (requested.group == 'com.quantumcloud' && requested.name == 'auth-api-client'))
+            boolean localRegistry = new File(workspaceRoot, 'setup-registry').isDirectory() &&
+                    requested.group == 'com.quantumcloud' && requested.name == 'setup-registry-api-client'
+            boolean localJob = new File(workspaceRoot, 'job-orchestrator').isDirectory() &&
+                    requested.group == 'com.quantumcloud' && requested.name == 'job-orchestrator-api-client'
+            if (localCore || localAuth || localRegistry || localJob) {
+                details.useVersion(nksVersion)
+                details.because('Use the exact private prod source snapshot built in this CI run')
+            }
+        }
+    }
+}

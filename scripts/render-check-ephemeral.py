@@ -143,7 +143,8 @@ def check_app(docs, pinned=True, routes=False):
 def reject(label, chart, profiles, extra, reasons, namespace=NAMESPACE):
     result = run(command(chart, profiles, extra, namespace))
     require(result.returncode != 0, f"잘못된 설정이 허용되었습니다: {label}")
-    require(all(reason in result.stderr for reason in reasons),
+    diagnostic = result.stderr.replace("/", ".").lower().replace("missing property", "required property")
+    require(all(reason.lower() in diagnostic for reason in reasons),
             f"예상하지 않은 실패 사유: {label}\n{result.stderr}")
     print(f"PASS 거부: {label} ({'; '.join(reasons)})")
 
@@ -178,19 +179,17 @@ def main():
     check_app(routes, routes=True)
     print("PASS 임시 프로필 lint/렌더·단독 프로필·저장소·격리 참조·앱 이미지·라우트·사용자 namespace")
 
-    for field, reason in (("global.storageClassName", "storageClassName"),
-                          ("mysql.storage", "mysql: storage"),
-                          ("kafka.storage", "kafka: storage")):
+    for field in ("global.storageClassName", "mysql.storage", "kafka.storage"):
         reject(f"persistent 필수 {field}", "stateful", [], ["--set", f"{field}=null"],
-               [reason, "is required"])
+               [*field.split("."), "required"])
     reject("mode enum", "stateful", [], ["--set", "global.storageMode=invalid"],
-           ["global.storageMode", "one of"])
+           ["global.storageMode", "persistent", "ephemeral"])
     reject("mode 타입", "stateful", [], ["--set", "global.storageMode=true"],
-           ["global.storageMode", "Expected: string"])
+           ["global.storageMode", "string"])
     reject("route bool 타입", "app", PROFILES["app"],
-           ["--set-string", "httpRoutes.enabled=false"], ["httpRoutes.enabled", "Expected: boolean"])
+           ["--set-string", "httpRoutes.enabled=false"], ["httpRoutes.enabled", "boolean"])
     reject("backup bool 타입", "stateful", PROFILES["stateful"],
-           ["--set-string", "backup.enabled=false"], ["backup.enabled", "Expected: boolean"])
+           ["--set-string", "backup.enabled=false"], ["backup.enabled", "boolean"])
     cases = [
         ("backup 충돌", "backup.enabled=true", ["cannot enable PVC backup"]),
         ("전체 비활성화에서도 backup 충돌", "backup.enabled=true,mysql.enabled=false,"

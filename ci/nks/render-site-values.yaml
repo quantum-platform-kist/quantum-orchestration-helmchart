@@ -1,0 +1,11 @@
+# Validation-only values. Never reference this file from an Argo Application.
+global:
+  namespace: quantum-cloud-prod
+  dnsResolver: 10.96.0.10
+  trustedProxies: 10.244.1.0/24
+  hosts:
+    shell: shell.validation.invalid
+    modules: modules.validation.invalid
+  issuer: https://shell.validation.invalid
+httpRoutes:
+  enabled: false

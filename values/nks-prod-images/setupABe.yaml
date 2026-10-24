@@ -1,0 +1,9 @@
+{
+  "images": {
+    "setupABe": {
+      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/setup-a-be",
+      "tag": "2026.10.12-001",
+      "digest": "sha256:e788efece6c7953d0ae399efde3cd7321bcd34969cd8e192b965fb4e14180d96"
+    }
+  }
+}

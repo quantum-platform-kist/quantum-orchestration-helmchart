@@ -1,0 +1,9 @@
+{
+  "images": {
+    "jobOrchestrator": {
+      "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-helmchart/job-orchestrator",
+      "tag": "2026.10.12-001",
+      "digest": "sha256:b3dc6f870756eca5bf94ec57b189fed7e9896c2c923b9017811020873f9e94cb"
+    }
+  }
+}

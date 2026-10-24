@@ -1,0 +1,67 @@
+{{- $publish := default dict .Values.modulePublish -}}
+{{- if default false $publish.enabled -}}
+{{- if not (regexMatch "^sha256:[0-9a-f]{64}$" (required "modulePublish.image.digest is required" $publish.image.digest)) -}}
+{{- fail "modulePublish.image.digest must be a sha256 digest" -}}
+{{- end -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: qc-nv-module-publish
+  namespace: {{ include "qc-app.namespace" . }}
+  labels:
+    {{- include "qc-app.labels" . | nindent 4 }}
+    app.kubernetes.io/name: qc-nv-module-publish
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    quantum-cloud.kist/module-version: {{ required "modulePublish.version is required" $publish.version | quote }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: qc-nv-module-publish
+        qc.quantum-cloud/role: app
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      {{- include "qc-app.imagePullSecrets" . | nindent 6 }}
+      {{- include "qc-app.webPlacement" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2
+        runAsGroup: 2
+        fsGroup: 2
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: publish
+          image: {{ include "qc-app.image" $publish.image }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: HOME
+              value: /tmp
+            - name: MYSQLSH_USER_CONFIG_HOME
+              value: /tmp
+            {{- include "qc-app.secretEnv" (dict "name" "LOCAL_ADMIN_EMAIL" "secretName" .Values.secrets.app.name "key" "LOCAL_ADMIN_EMAIL") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "LOCAL_ADMIN_PASSWORD" "secretName" .Values.secrets.app.name "key" "LOCAL_ADMIN_PASSWORD") | nindent 12 }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}
