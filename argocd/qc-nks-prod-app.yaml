@@ -12,7 +12,7 @@ spec:
     helm:
       parameters:
         - name: "apps.setupRegistry.replicas"
-          value: "0"
+          value: "1"
         - name: "modulePublish.enabled"
           value: "false"
       valueFiles:
