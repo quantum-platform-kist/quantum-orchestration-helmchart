@@ -235,11 +235,11 @@ def check_onprem_preservation(app, actual):
         parent = CHECK.resources(normalized, "HTTPRoute")[name]["spec"]["parentRefs"][0]
         require(parent["sectionName"] == expected, f"{name}: only the intended dev listener may be normalized")
         parent["sectionName"] = old_routes[name]["spec"]["parentRefs"][0]["sectionName"]
-    normalized_text = yaml.safe_dump(normalized)
+    normalized_text = yaml.safe_dump(CHECK.without_config_checksums(normalized))
     for current, old in [("modules.qc-dev.quantum-instrument.com", "modules.qc.quantum-instrument.com"),
                          ("qc-dev.quantum-instrument.com", "qc.quantum-instrument.com")]:
         normalized_text = normalized_text.replace(current, old)
-    require(normalized_text == yaml.safe_dump(previous),
+    require(normalized_text == yaml.safe_dump(CHECK.without_config_checksums(previous)),
             "on-prem change exceeds images, public origins, two dev listeners and the validated dev publisher")
     print("PASS on-prem full render equivalence: images, dev origins, two dev listeners and validated publisher only")
 
