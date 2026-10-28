@@ -154,6 +154,15 @@ class PublisherTests(unittest.TestCase):
         self.assertEqual(report["status"], "published-and-verified")
         self.assertTrue(report["moduleUrl"].startswith("https://modules.qc-dev.quantum-instrument.com/"))
 
+    def test_trust_contract_targets_shell_origin_setup_api(self):
+        for environment in ("prod", "dev"):
+            write_artifact(self.directory, environment=environment)
+            with patch.dict(os.environ, {"NKS_DEPLOYMENT_ENVIRONMENT": environment, "NKS_POD_NAMESPACE": "quantum-cloud-prod"}, clear=True):
+                config, _ = publisher.load_bundle(self.directory)
+            origin = deployment_contract(environment)["origin"]
+            self.assertEqual(config["expectedDirectApiBaseUrl"], origin + "/module/setup-a")
+            self.assertEqual(config["expectedConnectSrc"], [origin, origin.replace("https://", "wss://", 1)])
+
     def test_artifact_environment_branch_origin_or_version_mismatch_stops_before_login(self):
         for runtime, artifact in (("dev", "prod"), ("prod", "dev")):
             for field in ("deploymentEnvironment", "sourceBranch", "expectedModuleUrl", "version", "sourceFingerprint"):

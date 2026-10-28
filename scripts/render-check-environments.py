@@ -124,6 +124,7 @@ def check_app(docs, environment):
                 "prod publisher must remain paused")
     require(len(CHECK.resources(docs, "HTTPRoute")) == (2 if environment == "dev" else 0), "Gateway/ALB contract")
     CHECK.check_job_service_credentials(docs, "qc-prod-app-secrets")
+    CHECK.check_shell_setup_api(docs)
     for deployment in deployments.values():
         require(deployment["metadata"]["namespace"] == "quantum-cloud-prod", "existing app namespace")
         for container in deployment["spec"]["template"]["spec"]["containers"]:

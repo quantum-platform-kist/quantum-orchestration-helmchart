@@ -198,8 +198,9 @@ def load_bundle(directory):
     config = {"version": version, "sourceRepo": manifest["sourceRepo"], "sourceSha": manifest["sourceSha"], "archiveSha256": sha,
               "archiveBytes": len(archive), "entrySha256": expected_files["index.html"], "expandedBytes": sum(item["bytes"] for item in files),
               "files": files, "manifestMetadata": metadata, "expectedModuleUrl": expected_url,
-              "expectedDirectApiBaseUrl": contract["moduleOrigin"] + "/api/setup-a",
-              "expectedConnectSrc": [contract["moduleOrigin"], contract["moduleOrigin"].replace("https://", "wss://", 1)]}
+              # Setup API lives under the Shell origin (Shell nginx /module/setup-a/) so the Shell can reach local-rbac.
+              "expectedDirectApiBaseUrl": contract["origin"] + "/module/setup-a",
+              "expectedConnectSrc": [contract["origin"], contract["origin"].replace("https://", "wss://", 1)]}
     return config, archive
 
 
