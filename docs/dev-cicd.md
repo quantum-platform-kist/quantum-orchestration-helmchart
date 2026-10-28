@@ -95,7 +95,7 @@ python3 -m unittest discover -s ci/nks/tests -v
 git diff --check
 ```
 
-정적 테스트는 환경 혼합 거부, dev writeback/fanout, 이미지·Argo values·namespace 계약, 기존 prod 렌더 보존을 확인합니다. 온프레미스 렌더 비교는 origin·image와 의도된 두 sectionName 변경만 허용하고 dev Route가 dev listener를 참조하는지 확인합니다. publisher off/on을 모두 검증하며, on에서 추가되는 `qc-nv-module-publish` Job 한 개만 이름·PostSync·dev 환경·namespace·기존 Secret·허용 publisher·불변 digest를 명시 검증한 뒤 보존 비교에서 제외합니다. 나머지 모든 리소스, 기존 7개 앱, namespace와 스토리지 비교는 유지합니다. DNS/TLS, bridge 배포, module upload/activate 및 5기능 E2E도 위 실제 배포 검증에서 통과했습니다.
+정적 테스트는 환경 혼합 거부, dev writeback/fanout, 이미지·Argo values·namespace 계약, 기존 prod 렌더 보존을 확인합니다. 온프레미스 렌더 비교는 origin·image와 의도된 두 sectionName 변경만 허용하고 dev Route가 dev listener를 참조하는지 확인합니다. publisher off/on을 모두 검증하며, on에서 추가되는 `qc-nv-module-publish` Job 한 개만 이름·PostSync·dev 환경·namespace·기존 Secret·허용 publisher·불변 digest를 명시 검증한 뒤 보존 비교에서 제외합니다. 같은 조건으로 렌더되는 일반 ConfigMap `qc-nv-module-publish-version`(data `version`, `imageDigest`)도 값과 hook 미지정을 검증한 뒤 함께 제외합니다. Argo CD는 hook을 diff에서 빼므로, writeback이 publisher values만 바꿔도 이 ConfigMap 변경으로 앱이 OutOfSync가 되어 auto-sync operation과 PostSync 게시가 실행됩니다. 나머지 모든 리소스, 기존 7개 앱, namespace와 스토리지 비교는 유지합니다. DNS/TLS, bridge 배포, module upload/activate 및 5기능 E2E도 위 실제 배포 검증에서 통과했습니다.
 
 아래는 후속 운영 점검과 필요할 때 수동 재빌드에 사용할 예시입니다. 저장된 `gh` 인증을 사용하고 토큰을 출력하지 않습니다.
 

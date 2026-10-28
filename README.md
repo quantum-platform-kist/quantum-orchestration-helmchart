@@ -293,7 +293,7 @@ valueFiles:
 5. Kafka topic init, MinIO bucket init, MySQL app schema bootstrap Job 완료를 확인합니다.
 6. app chart는 `values/prod-app.yaml`로 먼저 배포하여 replica `0` 상태를 유지합니다.
 7. restore/count/module object 정합성 확인 후 `values/prod-app-images.yaml`과 `values/prod-app-online.yaml`을 추가해 검증된 GHCR digest 이미지로 앱을 1 replica씩 올립니다.
-8. `setup-a` zip을 Registry upload API로 업로드하고 activate합니다. manifest의 `moduleUrl`, `directApiBaseUrl=https://modules.qc.quantum-instrument.com/api/setup-a`, `connectSrc`를 확인합니다.
+8. `setup-a` zip을 Registry upload API로 업로드하고 activate합니다. manifest의 `moduleUrl`, `directApiBaseUrl=https://modules.qc.quantum-instrument.com/api/setup-a`, `connectSrc`를 확인합니다. Shell origin API로 전환한 뒤에는 `directApiBaseUrl=https://qc.quantum-instrument.com/module/setup-a`입니다(`manifests/setup-a-module-shell-origin-api.reviewed.sql`).
 
 Module upload 예시:
 
@@ -325,6 +325,7 @@ RFSoC worker start/cancel consumer, end publisher daemon, 외부 Kafka TLS/SASL/
 - Auth `Set-Cookie Path=/api/auth`와 logout deletion cookie는 `/server/api/auth`로 rewrite합니다.
 - Modules nginx는 `/module-assets/**`를 Registry로 보냅니다. MinIO를 브라우저에 직접 노출하지 않습니다.
 - Modules nginx는 `/api/setup-a/setups/{setupId}/setup-a/**`만 실제 `setup-a-be`의 `/setups/{setupId}/setup-a/**` REST/WS endpoint로 보냅니다.
+- Shell nginx는 FAB `/module/<키>` 규약에 따라 `/module/setup-a/setups/{setupId}/setup-a/**`와 `/module/setup-a/local-rbac/**`만 prefix를 떼어 `setup-a-be`로 보내고, 나머지 `/module/setup-a/**`는 404입니다. Cookie는 전달하지 않고 `Set-Cookie`는 숨깁니다. manifest `directApiBaseUrl`이 Shell origin이어야 Shell 권한 관리 화면이 `/local-rbac`를 호출합니다. 기존 modules origin `/api/setup-a` 경로는 호환을 위해 유지합니다.
 - Shell origin과 modules origin은 분리됩니다. iframe setup scoped token MessagePort 격리를 유지합니다.
 
 ## PVC 없는 임시 검증 배포

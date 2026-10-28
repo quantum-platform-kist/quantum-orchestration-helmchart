@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 COMPONENTS = {"auth", "gateway", "setupRegistry", "jobOrchestrator", "setupABe",
               "shell", "setupModules", "modulePublisher"}
 PUBLISHER_NAME = "qc-nv-module-publish"
+PUBLISHER_MARKER = "qc-nv-module-publish-version"
 PUBLISHER_REPOSITORY = "ghcr.io/quantum-platform-kist/quantum-setup-nv-frontend/module-publisher"
 SPEC = importlib.util.spec_from_file_location("nks_render", ROOT / "scripts/render-check-nks.py")
 CHECK = importlib.util.module_from_spec(SPEC)
@@ -119,9 +120,11 @@ def check_app(docs, environment):
     if environment == "dev":
         check_dev_publisher(docs)
     else:
-        require(not CHECK.resources(docs, "Job"), "prod publisher must remain paused")
+        require(not CHECK.resources(docs, "Job") and PUBLISHER_MARKER not in CHECK.resources(docs, "ConfigMap"),
+                "prod publisher must remain paused")
     require(len(CHECK.resources(docs, "HTTPRoute")) == (2 if environment == "dev" else 0), "Gateway/ALB contract")
     CHECK.check_job_service_credentials(docs, "qc-prod-app-secrets")
+    CHECK.check_shell_setup_api(docs)
     for deployment in deployments.values():
         require(deployment["metadata"]["namespace"] == "quantum-cloud-prod", "existing app namespace")
         for container in deployment["spec"]["template"]["spec"]["containers"]:
@@ -149,8 +152,9 @@ def check_app(docs, environment):
                     "existing on-prem app node")
         auth = CHECK.environment(docs, "auth")
         require(auth["TRUSTED_PROXIES"]["value"] == "10.244.2.0/24", "on-prem proxy contract")
-        for config in CHECK.resources(docs, "ConfigMap").values():
-            require("resolver 10.96.0.10 " in config["data"]["default.conf"], "on-prem DNS contract")
+        for name, config in CHECK.resources(docs, "ConfigMap").items():
+            if name != PUBLISHER_MARKER:
+                require("resolver 10.96.0.10 " in config["data"]["default.conf"], "on-prem DNS contract")
         registry = CHECK.environment(docs, "setup-registry")
         require(registry["MODULE_STORAGE_BUCKET"]["value"] == "setup-modules" and
                 registry["MODULE_STORAGE_ENDPOINT"]["value"] == "http://qc-minio:9000", "existing MinIO and bucket")
@@ -161,6 +165,8 @@ def check_app(docs, environment):
 def check_dev_publisher(docs):
     jobs = [doc for doc in docs if doc["kind"] == "Job"]
     require(len(jobs) <= 1, "on-prem app may only add one publisher Job")
+    marker = publisher_marker(docs)
+    require(bool(marker) == bool(jobs), "publisher version ConfigMap must render together with the publisher Job")
     if not jobs:
         return None
     job = jobs[0]
@@ -181,6 +187,11 @@ def check_dev_publisher(docs):
             re.fullmatch(r"onprem-dev-" + fingerprint[:12] + r"-[0-9]+-[0-9]+", publish["version"]) and
             annotations.get("quantum-cloud.kist/module-version") == publish["version"],
             "publisher must use the version from the dev source fingerprint")
+    # hook은 Argo diff에서 빠지므로, 일반 리소스인 version ConfigMap이 게시 버전 변경을 OutOfSync로 드러냅니다.
+    require(marker["metadata"]["namespace"] == "quantum-cloud-prod" and
+            not any(key.startswith("argocd.argoproj.io/") for key in marker["metadata"].get("annotations", {})) and
+            marker["data"] == {"version": publish["version"], "imageDigest": image["digest"]},
+            "publisher version ConfigMap must be a plain resource carrying the selected version and digest")
     pod = job["spec"]["template"]["spec"]
     require(len(pod["containers"]) == 1 and not pod.get("initContainers"), "publisher container identity")
     container = pod["containers"][0]
@@ -199,14 +210,21 @@ def check_dev_publisher(docs):
     return job
 
 
+def publisher_marker(docs):
+    markers = [doc for doc in docs if doc["kind"] == "ConfigMap" and doc["metadata"]["name"] == PUBLISHER_MARKER]
+    require(len(markers) <= 1, "publisher version ConfigMap must be unique")
+    return markers[0] if markers else None
+
+
 def check_onprem_preservation(app, actual):
     before = deepcopy(app)
     before["spec"]["source"]["helm"] = {"valueFiles": [
         "../../values/prod-app.yaml", "../../values/prod-app-images.yaml", "../../values/prod-app-online.yaml"]}
     previous = render(before)
-    # 검증한 단일 dev 게시 Job 객체만 제외합니다. 다른 Job/리소스는 숨기지 않습니다.
+    # 검증한 단일 dev 게시 Job과 그 version ConfigMap만 제외합니다. 다른 Job/리소스는 숨기지 않습니다.
     publisher = check_dev_publisher(actual)
-    normalized = deepcopy([doc for doc in actual if doc is not publisher])
+    marker = publisher_marker(actual)
+    normalized = deepcopy([doc for doc in actual if doc is not publisher and doc is not marker])
     old_deployments = CHECK.resources(previous, "Deployment")
     for name, deployment in CHECK.resources(normalized, "Deployment").items():
         old_containers = old_deployments[name]["spec"]["template"]["spec"]["containers"]
@@ -250,7 +268,8 @@ def check_seed_values():
 def check_publisher(app):
     for enabled in [False, True]:
         docs = render(app, {"modulePublish.enabled": str(enabled).lower()})
-        require(bool(check_dev_publisher(docs)) == enabled, "publisher off/on must control only the expected Job")
+        require(bool(check_dev_publisher(docs)) == enabled and bool(publisher_marker(docs)) == enabled,
+                "publisher off/on must control only the expected Job and version ConfigMap")
         check_app(docs, "dev")
         check_onprem_preservation(app, docs)
         print(f"PASS on-prem publisher {'on' if enabled else 'off'}: full app preservation and publisher contract")
