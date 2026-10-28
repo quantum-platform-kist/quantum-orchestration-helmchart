@@ -2,9 +2,9 @@
   "images": {
     "jobOrchestrator": {
       "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-job/job-orchestrator",
-      "tag": "dev-06cefe00c634-40253191291-1",
-      "digest": "sha256:7546c804d47cb6628ea50cd3f074b96fe8236c8ff00c846cc7fb3fe96a531b71",
-      "sourceFingerprint": "6d38c39f6cd8970958dd7b6607c0e317dec3bfca9f546e6538b5f03dc5c3796b"
+      "tag": "dev-f07969efcc0d-40689672115-1",
+      "digest": "sha256:6123654242342df9bdf5f07fa2777c06470be2d09d02caeb2890f17fb35a2f9c",
+      "sourceFingerprint": "baa7d704f927c613c28a31425faf9ab9fa01bd5c45c688e62835147993c68497"
     }
   }
 }
