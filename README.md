@@ -203,6 +203,8 @@ MySQL schema/user bootstrap은 `qc-mysql-app-bootstrap` Job이 Secret을 env로 
 
 `apps.auth.allowDefaultAdmin`의 chart 기본값은 `false`이며, 현재 `values/prod-app.yaml`은 사용자가 지정한 `admin@local`을 사용하기 위해 `true`로 설정합니다. 이 값이 `LOCAL_ADMIN_ALLOW_DEFAULT`로 전달되어 Auth의 기본 관리자 식별자 사용 제한을 해제합니다. 이메일·비밀번호는 기존 Secret에서 읽으며, `LOCAL_ADMIN_RESET_PASSWORD_ON_START=false`이므로 재시작마다 기존 계정의 비밀번호를 초기화하지 않습니다.
 
+모듈 게시 Job의 로그인은 `modulePublish.credentialsSecretName`으로 별도 Secret을 참조할 수 있습니다. 비어 있으면 기존 `secrets.app.name`을 사용합니다. 별도 Secret은 같은 namespace에 `LOCAL_ADMIN_EMAIL`, `LOCAL_ADMIN_PASSWORD` 키를 준비하며, 비밀값은 Git에 넣지 않습니다. 이 설정은 게시 Job의 로그인 참조만 바꾸고 Auth의 초기 관리자 설정이나 실제 계정 비밀번호는 변경하지 않습니다.
+
 Registry의 서비스 신원은 `platform:setup-registry`입니다. `AUTH_SEED_REGISTRY_CLIENT_SECRET`과 `SETUP_REGISTRY_AUTH_CLIENT_SECRET`에는 동일한 자격증명을 넣습니다. 이 계정은 셋업 서비스 계정을 발급하는 용도입니다.
 
 현재 단일 셋업 배포에서 Job 서버와 Setup A 백엔드는 `setup-be:<global.moduleSetupId>` 신원으로 Auth에 권한 판정을 요청합니다. Auth의 내부 `/oauth2/token`에서 Registry 서비스 토큰을 발급받은 뒤 `/internal/service-accounts`에 `setupId`를 전달해 셋업 계정을 생성합니다. 반환된 `clientSecret`을 `JOB_ORCHESTRATOR_AUTH_CLIENT_SECRET`, `SETUP_A_AUTH_CLIENT_SECRET`에 저장하고 두 백엔드를 재시작합니다. 내부 API는 SSH 터널 또는 클러스터 내부에서만 호출합니다.
