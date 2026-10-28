@@ -2,9 +2,9 @@
   "images": {
     "setupABe": {
       "repository": "ghcr.io/quantum-platform-kist/quantum-setup-nv-backend/setup-a-be",
-      "tag": "dev-f9d911c3c3f3-40651857441-1",
-      "digest": "sha256:20bd292089d7d4d5528df31465cc61297cdb760fa98dbd7c9e970151f1aa3dc2",
-      "sourceFingerprint": "aee03c13db54f4395cff71a85f912ec0be2f129bd0f4e6e5506dc9ce59d8caf3"
+      "tag": "dev-8d549269d737-40687148901-1",
+      "digest": "sha256:14ecb79087763ece96478a1e42b048c9eb7ebef2463b1caf49184e3d84ad7f84",
+      "sourceFingerprint": "eaf160b51c950b1c998052fa36b8e4d5f5d32934dce0fa7cbb6dc0f51f432c49"
     }
   }
 }
