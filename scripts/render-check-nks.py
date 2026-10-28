@@ -40,6 +40,10 @@ SITE_GLOBAL = {
 }
 
 
+CONFIG_CHECKSUM = "checksum/nginx-config"
+STATIC_APPS = ("shell", "setup-modules")
+
+
 def require(condition, message):
     if not condition:
         raise AssertionError(message)
@@ -243,6 +247,7 @@ def check_app(docs, profile, endpoint=OBJECT_ENDPOINT, routes=False, site_global
         require(f"resolver {site_global['dnsResolver']} " in config["data"]["default.conf"],
                 "현장 DNS resolver가 nginx에 전달되지 않았습니다")
     check_shell_setup_api(docs)
+    config_checksums(docs)
     rendered_routes = resources(docs, "HTTPRoute")
     require(len(rendered_routes) == (2 if routes else 0), "HTTPRoute 기본 비활성/현장 활성화 계약이 다릅니다")
     if routes:
@@ -255,6 +260,35 @@ def check_app(docs, profile, endpoint=OBJECT_ENDPOINT, routes=False, site_global
                     parent["namespace"] == site_global["gateway"]["namespace"] and
                     parent["sectionName"] == site_global["gateway"][listener],
                     "현장 Gateway/listener가 전달되지 않았습니다")
+
+
+def config_checksums(docs):
+    deployments = resources(docs, "Deployment")
+    checksums = {name: deployments[name]["spec"]["template"]["metadata"].get("annotations", {}).get(CONFIG_CHECKSUM, "")
+                 for name in STATIC_APPS}
+    require(all(re.fullmatch(r"[0-9a-f]{64}", value) for value in checksums.values()),
+            "subPath nginx 설정을 쓰는 Deployment에는 설정 checksum이 필요합니다")
+    return checksums
+
+
+def without_config_checksums(docs):
+    # checksum은 렌더된 nginx 설정에서 파생되므로, 주소만 바꾼 렌더 비교에서는 형식을 확인한 뒤 값을 비교에서 뺍니다.
+    config_checksums(docs)
+    docs = deepcopy(docs)
+    for deployment in resources(docs, "Deployment").values():
+        deployment["spec"]["template"]["metadata"].get("annotations", {}).pop(CONFIG_CHECKSUM, None)
+    return docs
+
+
+def check_config_checksum_rollout(site):
+    # subPath로 마운트한 nginx 설정은 실행 중인 Pod에 반영되지 않으므로, 설정이 바뀌면 Pod template도 바뀌어야 합니다.
+    base = render("prod-app-online", site=site)
+    changed = render("prod-app-online", ["--set-string", "global.dnsResolver=192.0.2.54"], site)
+    require(all(config_checksums(base)[name] != config_checksums(changed)[name] for name in STATIC_APPS),
+            "nginx 설정 변경이 shell/setup-modules Pod template에 반영되지 않습니다")
+    others = lambda docs: {name: doc for name, doc in resources(docs, "Deployment").items() if name not in STATIC_APPS}
+    require(others(base) == others(changed), "nginx 설정 checksum이 다른 Deployment를 바꾸면 안 됩니다")
+    print("PASS nginx 설정 checksum: 설정 변경 시 shell/setup-modules만 재시작")
 
 
 def check_shell_setup_api(docs, setup_id="stp_nv_a1"):
@@ -310,13 +344,13 @@ def check_dev_dns_overlay():
     check_dev_origins(after)
     require(len(resources(after, "HTTPRoute")) == 2, "기존 HTTPRoute 2개를 유지해야 합니다")
     old_hosts = yaml.safe_load((ROOT / "values/prod-app.yaml").read_text())["global"]["hosts"]
-    actual = normalized = yaml.safe_dump(after)
+    actual = normalized = yaml.safe_dump(without_config_checksums(after))
     for key in ("modules", "shell"):
         require(old_hosts[key] not in actual, f"기존 {key} host가 렌더에 남았습니다")
         normalized = normalized.replace(DEV_DNS["hosts"][key], old_hosts[key])
     # 주소만 되돌린 전체 리소스 비교로 namespace/Secret/image/replica/placement와
     # 데이터 서비스·Gateway/listener 참조 등 나머지 설정의 보존을 함께 검사합니다.
-    require(normalized == yaml.safe_dump(before), "dev-dns가 주소 외의 배포 설정을 변경했습니다")
+    require(normalized == yaml.safe_dump(without_config_checksums(before)), "dev-dns가 주소 외의 배포 설정을 변경했습니다")
     print("PASS 개발 DNS-only lint/렌더: origin·issuer·CORS·CSP·HTTPRoute·Module URL 변경, 나머지 리소스 보존")
 
 
@@ -400,6 +434,7 @@ def main():
                                                     "--set", "statefulServices.minio=custom-minio"], site)
         check_app(custom_service, "prod-app-online", endpoint="http://custom-minio:9000")
         print("PASS NKS HTTPRoute/site-values·endpoint 그대로 출력·기존 내부 endpoint fallback")
+        check_config_checksum_rollout(site)
 
         registry_off = render("prod-app-online", ["--set", "apps.setupRegistry.replicas=0",
                                                   "--set", "modulePublish.enabled=false"], site)
