@@ -237,6 +237,7 @@ def check_app(docs, profile, endpoint=OBJECT_ENDPOINT, routes=False):
     for config in resources(docs, "ConfigMap").values():
         require(f"resolver {SITE_GLOBAL['dnsResolver']} " in config["data"]["default.conf"],
                 "현장 DNS resolver가 nginx에 전달되지 않았습니다")
+    check_shell_setup_api(docs)
     rendered_routes = resources(docs, "HTTPRoute")
     require(len(rendered_routes) == (2 if routes else 0), "HTTPRoute 기본 비활성/현장 활성화 계약이 다릅니다")
     if routes:
@@ -269,6 +270,17 @@ def reject(label, profile, extra, site, reason):
     require(result.returncode != 0, f"잘못된 설정을 허용했습니다: {label}")
     require(reason.lower() in result.stderr.replace("/", ".").lower(), f"예상하지 않은 거부 사유: {label}\n{result.stderr}")
     print(f"PASS NKS 거부: {label} ({reason})")
+
+
+def check_shell_setup_api(docs, setup_id="stp_nv_a1"):
+    config = " ".join(resources(docs, "ConfigMap")["shell-nginx"]["data"]["default.conf"].split())
+    route = ("location ~ ^/module/setup-a/((?:setups/" + setup_id + "/setup-a|local-rbac)(?:/.*)?)$ {")
+    block = config.split(route, 1)[1].split(" }", 1)[0] if route in config else ""
+    require("location /module/setup-a/ { return 404; }" in config and
+            'proxy_set_header Cookie "";' in block and "proxy_hide_header Set-Cookie;" in block and
+            "rewrite ^/module/setup-a/((?:setups/" + setup_id + "/setup-a|local-rbac)(?:/.*)?)$ /$1 break;" in block and
+            "proxy_pass http://$setup_a_be_upstream;" in block,
+            "Shell origin setup API는 허용 경로만 쿠키 없이 setup-a-be로 보내야 합니다")
 
 
 def main():
