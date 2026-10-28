@@ -1,0 +1,18 @@
+{{- $publish := default dict .Values.modulePublish -}}
+{{- if default false $publish.enabled -}}
+{{- /*
+Argo CD는 hook 리소스를 diff에서 제외합니다. publisher version/digest만 바뀌어도
+이 일반 리소스가 OutOfSync를 만들어 auto-sync operation과 PostSync 게시 Job이 실행되게 합니다.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qc-nv-module-publish-version
+  namespace: {{ include "qc-app.namespace" . }}
+  labels:
+    {{- include "qc-app.labels" . | nindent 4 }}
+    app.kubernetes.io/name: qc-nv-module-publish
+data:
+  version: {{ required "modulePublish.version is required" $publish.version | quote }}
+  imageDigest: {{ required "modulePublish.image.digest is required" $publish.image.digest | quote }}
+{{- end }}
