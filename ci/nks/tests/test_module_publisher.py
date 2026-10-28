@@ -73,7 +73,7 @@ class FakeApi:
             if token is not None:
                 raise AssertionError("asset request must be anonymous")
             name = path.split(VERSION + "/", 1)[1]
-            return 200, None, FILES[name], {"Content-Security-Policy": "frame-ancestors https://qc.quantum-instrument.com; connect-src https://modules.qc.quantum-instrument.com wss://modules.qc.quantum-instrument.com"}
+            return 200, None, FILES[name], {"Content-Security-Policy": "frame-ancestors https://qc.quantum-instrument.com; connect-src " + " ".join(self.config["expectedConnectSrc"])}
         raise AssertionError("unexpected internal route")
 
 
@@ -137,6 +137,26 @@ class PublisherTests(unittest.TestCase):
         (self.directory / "manifest.json").write_text(json.dumps(self.manifest))
         with self.assertRaises(publisher.StopPublication):
             publisher.load_bundle(self.directory)
+
+    def test_trust_contract_targets_shell_origin_setup_api(self):
+        self.assertEqual(self.config["expectedDirectApiBaseUrl"], "https://qc.quantum-instrument.com/module/setup-a")
+        self.assertEqual(self.config["expectedConnectSrc"], ["https://qc.quantum-instrument.com", "wss://qc.quantum-instrument.com"])
+
+    def test_module_origin_only_csp_is_rejected(self):
+        api = FakeApi(self.config)
+        original = api.call
+
+        def legacy_csp(path, method="GET", token=None, payload=None, content_type=None, modules=False):
+            status, body, raw, headers = original(path, method, token, payload, content_type, modules)
+            if headers is not None:
+                headers = {"Content-Security-Policy": "frame-ancestors https://qc.quantum-instrument.com; connect-src https://modules.qc.quantum-instrument.com wss://modules.qc.quantum-instrument.com"}
+            return status, body, raw, headers
+        api.call = legacy_csp
+        output = io.StringIO()
+        env = {"ARTIFACT_DIRECTORY": str(self.directory), "LOCAL_ADMIN_EMAIL": "admin@local", "LOCAL_ADMIN_PASSWORD": "PRIVATE_TEST_PASSWORD"}
+        with patch.dict(os.environ, env, clear=True), patch.object(publisher, "call", side_effect=api.call), contextlib.redirect_stdout(output):
+            self.assertEqual(publisher.main(), 1)
+        self.assertIn("production_module_csp_verification_failed", output.getvalue())
 
     def test_path_traversal_archive_rejected(self):
         write_artifact(self.directory, dict(FILES, **{"../escape.js": b"bad"}))

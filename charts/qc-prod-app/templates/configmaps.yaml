@@ -26,6 +26,7 @@ data:
       index index.html;
       resolver {{ .Values.global.dnsResolver }} valid=10s ipv6=off;
       set $gateway_upstream gateway.{{ include "qc-app.namespace" . }}.svc.cluster.local:{{ .Values.apps.gateway.port }};
+      set $setup_a_be_upstream setup-a-be.{{ include "qc-app.namespace" . }}.svc.cluster.local:{{ .Values.apps.setupABe.port }};
 
       add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' {{ include "qc-app.shellOrigin" . }} wss://{{ .Values.global.hosts.shell }} {{ include "qc-app.modulesOrigin" . }} wss://{{ .Values.global.hosts.modules }}; frame-src {{ include "qc-app.modulesOrigin" . }}; object-src 'none'; base-uri 'self'; form-action 'self'" always;
       add_header Cross-Origin-Embedder-Policy "credentialless" always;
@@ -55,6 +56,30 @@ data:
 
       location = /server {
         return 308 /server/;
+      }
+
+      # Setup API under the Shell origin (manifest directApiBaseUrl), so the Shell can call /local-rbac.
+      # Only the setup-scoped REST/WS paths and local-rbac reach setup-a-be; the setup token travels as a
+      # bearer header, so Shell cookies are never forwarded and the BE cannot set cookies on this origin.
+      location /module/setup-a/ {
+        return 404;
+      }
+
+      location ~ ^/module/setup-a/((?:setups/{{ .Values.global.moduleSetupId }}/setup-a|local-rbac)(?:/.*)?)$ {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port 443;
+        proxy_set_header X-Forwarded-Proto $qc_forwarded_proto;
+        proxy_set_header Forwarded "proto=$qc_forwarded_proto;host=$host";
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Cookie "";
+        proxy_hide_header Set-Cookie;
+        rewrite ^/module/setup-a/((?:setups/{{ .Values.global.moduleSetupId }}/setup-a|local-rbac)(?:/.*)?)$ /$1 break;
+        proxy_pass http://$setup_a_be_upstream;
       }
 
       location / {

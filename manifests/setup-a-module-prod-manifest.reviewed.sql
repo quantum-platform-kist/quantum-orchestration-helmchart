@@ -17,8 +17,10 @@ SET
     'https://modules.qc.quantum-instrument.com',
     SUBSTRING(module_url, LOCATE('/module-assets/', module_url))
   ),
-  direct_api_base_url = 'https://modules.qc.quantum-instrument.com/api/setup-a',
-  connect_src = '["https://modules.qc.quantum-instrument.com","wss://modules.qc.quantum-instrument.com"]',
+  -- Setup API is served under the Shell origin (Shell nginx /module/setup-a/), see
+  -- setup-a-module-shell-origin-api.reviewed.sql for switching an already running row.
+  direct_api_base_url = 'https://qc.quantum-instrument.com/module/setup-a',
+  connect_src = '["https://qc.quantum-instrument.com","wss://qc.quantum-instrument.com"]',
   trust_level = 'FIRST_PARTY_TRUSTED',
   token_policy = 'PLATFORM_JWT',
   updated_who = 'prod-cutover-reviewed-sql'

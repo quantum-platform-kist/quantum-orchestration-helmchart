@@ -174,8 +174,9 @@ def load_bundle(directory):
     config = {"version": version, "sourceRepo": manifest["sourceRepo"], "sourceSha": manifest["sourceSha"], "archiveSha256": sha,
               "archiveBytes": len(archive), "entrySha256": expected_files["index.html"], "expandedBytes": sum(item["bytes"] for item in files),
               "files": files, "manifestMetadata": metadata, "expectedModuleUrl": expected_url,
-              "expectedDirectApiBaseUrl": MODULE_ORIGIN + "/api/setup-a",
-              "expectedConnectSrc": [MODULE_ORIGIN, "wss://modules.qc.quantum-instrument.com"]}
+              # Setup API lives under the Shell origin (Shell nginx /module/setup-a/) so the Shell can reach local-rbac.
+              "expectedDirectApiBaseUrl": ORIGIN + "/module/setup-a",
+              "expectedConnectSrc": [ORIGIN, "wss://qc.quantum-instrument.com"]}
     return config, archive
 
 
@@ -231,7 +232,7 @@ def main():
                 raise StopPublication("anonymous_module_asset_verification_failed")
             if item["path"] == "index.html":
                 csp = headers.get("Content-Security-Policy", "") if headers else ""
-                if ORIGIN not in csp or MODULE_ORIGIN not in csp or "wss://modules.qc.quantum-instrument.com" not in csp:
+                if ORIGIN not in csp or any(origin not in csp for origin in config["expectedConnectSrc"]):
                     raise StopPublication("production_module_csp_verification_failed")
         report.update({"anonymousAssets": assets, "status": "published-and-verified"})
     except Exception as exc:
