@@ -14,7 +14,7 @@ spec:
         - name: "apps.setupRegistry.replicas"
           value: "1"
         - name: "modulePublish.enabled"
-          value: "false"
+          value: "true"
       valueFiles:
         - "../../values/prod-app.yaml"
         - "../../values/prod-app-images.yaml"
