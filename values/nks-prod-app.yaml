@@ -25,6 +25,9 @@ httpRoutes:
   # MSP가 Gateway/listener/TLS/DNS를 준비한 후 site-values에서 활성화합니다.
   enabled: false
 
+modulePublish:
+  credentialsSecretName: qc-nv-module-publisher-auth
+
 apps:
   auth:
     mailDeliveryMode: mock

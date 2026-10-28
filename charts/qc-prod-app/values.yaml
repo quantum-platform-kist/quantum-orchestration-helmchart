@@ -33,6 +33,10 @@ secrets:
   app:
     name: qc-prod-app-secrets
 
+modulePublish:
+  # Empty uses secrets.app.name; an override only changes publisher login references.
+  credentialsSecretName: ""
+
 httpRoutes:
   enabled: true
 

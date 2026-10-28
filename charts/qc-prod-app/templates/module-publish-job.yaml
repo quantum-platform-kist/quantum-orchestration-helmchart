@@ -1,5 +1,6 @@
 {{- $publish := default dict .Values.modulePublish -}}
 {{- if default false $publish.enabled -}}
+{{- $credentialsSecretName := default .Values.secrets.app.name $publish.credentialsSecretName -}}
 {{- if not (regexMatch "^sha256:[0-9a-f]{64}$" (required "modulePublish.image.digest is required" $publish.image.digest)) -}}
 {{- fail "modulePublish.image.digest must be a sha256 digest" -}}
 {{- end -}}
@@ -44,8 +45,8 @@ spec:
               value: /tmp
             - name: MYSQLSH_USER_CONFIG_HOME
               value: /tmp
-            {{- include "qc-app.secretEnv" (dict "name" "LOCAL_ADMIN_EMAIL" "secretName" .Values.secrets.app.name "key" "LOCAL_ADMIN_EMAIL") | nindent 12 }}
-            {{- include "qc-app.secretEnv" (dict "name" "LOCAL_ADMIN_PASSWORD" "secretName" .Values.secrets.app.name "key" "LOCAL_ADMIN_PASSWORD") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "LOCAL_ADMIN_EMAIL" "secretName" $credentialsSecretName "key" "LOCAL_ADMIN_EMAIL") | nindent 12 }}
+            {{- include "qc-app.secretEnv" (dict "name" "LOCAL_ADMIN_PASSWORD" "secretName" $credentialsSecretName "key" "LOCAL_ADMIN_PASSWORD") | nindent 12 }}
           resources:
             requests:
               cpu: 50m

@@ -257,6 +257,37 @@ def check_app(docs, profile, endpoint=OBJECT_ENDPOINT, routes=False):
                     "현장 Gateway/listener가 전달되지 않았습니다")
 
 
+def check_publisher_credentials(site):
+    options = ["--set", "modulePublish.enabled=true",
+               "--set-string", "modulePublish.version=credentials-check",
+               "--set-string", "modulePublish.image.repository=ghcr.io/example/module-publisher",
+               "--set-string", "modulePublish.image.digest=sha256:" + "0" * 64]
+    configured = render("prod-app-online", options, site)
+    configured_env = resources(configured, "Job")["qc-nv-module-publish"]["spec"]["template"]["spec"]["containers"][0]["env"]
+    for entry in configured_env:
+        if entry["name"] in ("LOCAL_ADMIN_EMAIL", "LOCAL_ADMIN_PASSWORD"):
+            require(entry["valueFrom"]["secretKeyRef"]["name"] == "qc-nv-module-publisher-auth",
+                    "NKS prod publisher must use its separate login Secret")
+    for profile in ("prod-app-online", "dev-app"):
+        default_docs = render(profile, options + [
+            "--set-string", "modulePublish.credentialsSecretName="], site)
+        custom_docs = render(profile, options + [
+            "--set-string", "modulePublish.credentialsSecretName=publisher-login"], site)
+        default_secret = "qc-dev-app-secrets" if profile == "dev-app" else "qc-prod-app-secrets"
+        for docs, expected_secret in [(default_docs, default_secret),
+                                      (custom_docs, "publisher-login")]:
+            job = resources(docs, "Job")["qc-nv-module-publish"]
+            env = {entry["name"]: entry for entry in job["spec"]["template"]["spec"]["containers"][0]["env"]}
+            for name in ("LOCAL_ADMIN_EMAIL", "LOCAL_ADMIN_PASSWORD"):
+                require(env[name] == {"name": name, "valueFrom": {"secretKeyRef": {
+                    "name": expected_secret, "key": name}}},
+                    f"{profile}: publisher login must use the selected Secret")
+                env[name]["valueFrom"]["secretKeyRef"]["name"] = "normalized-publisher-login"
+        require(default_docs == custom_docs,
+                f"{profile}: publisher credentials override changed unrelated resources")
+    print("PASS publisher default/custom Secret references and unrelated resource preservation")
+
+
 def check_profile_inputs():
     for name in ("nks-prod-stateful", "nks-dev-stateful", "nks-prod-app", "nks-dev-app"):
         values = yaml.safe_load((ROOT / "values" / f"{name}.yaml").read_text())
@@ -347,6 +378,7 @@ def main():
         check_app(custom_service, "prod-app-online", endpoint="http://custom-minio:9000")
         print("PASS NKS HTTPRoute/site-values·endpoint 그대로 출력·기존 내부 endpoint fallback")
         check_config_checksum_rollout(site)
+        check_publisher_credentials(site)
 
         registry_off = render("prod-app-online", ["--set", "apps.setupRegistry.replicas=0",
                                                   "--set", "modulePublish.enabled=false"], site)
