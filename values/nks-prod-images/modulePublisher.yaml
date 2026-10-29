@@ -3,10 +3,10 @@
     "enabled": true,
     "image": {
       "repository": "ghcr.io/quantum-platform-kist/quantum-setup-nv-frontend/module-publisher",
-      "tag": "prod-c7b3dcaa15fa-40719183382-1",
-      "digest": "sha256:32233eacf8a5537bcc0cc3366c033f23f6cbd9346bd6d22115657014eebf3cde"
+      "tag": "prod-c31c9b52633f-40793892614-1",
+      "digest": "sha256:bba41d3d5d1b9d21f0613dc84cd3b352f5ad1bb2accd9579fcdd96428b4140e8"
     },
-    "version": "nks-30994b909d90-40719183382-1",
-    "sourceFingerprint": "30994b909d90069e3c474467a12e99179511392ce2c8b3c55117d7c0adffc709"
+    "version": "nks-caa37a060a67-40793892614-1",
+    "sourceFingerprint": "caa37a060a67ea34d5c271a36526f8a510afc3ca3893e0b07cd72e0a5e7a2c7f"
   }
 }
