@@ -2,9 +2,9 @@
   "images": {
     "shell": {
       "repository": "ghcr.io/quantum-platform-kist/quantum-orchestration-shell/shell",
-      "tag": "dev-d022d9c76b06-42022650201-1",
-      "digest": "sha256:712fb3689ec6b8e175ba8b97046723ef9f0a5df171dbd64ed0770a1d641f91b5",
-      "sourceFingerprint": "5e62a0e37675bd3d7e2f329f41473ffc7fbfffcb80f431d13927b890d0b88d62"
+      "tag": "dev-d022d9c76b06-42188524902-1",
+      "digest": "sha256:5628c90759248a27e28c58af99d806f1901f19ea1543bfcbbd2665c01577b750",
+      "sourceFingerprint": "85005b7505b93086b397808a30d10dfb98afedbe7bd6883509c9fa16bf98c1ca"
     }
   }
 }
